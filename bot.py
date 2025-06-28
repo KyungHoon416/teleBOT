@@ -822,12 +822,15 @@ def main():
     
     # 알림 스케줄링 설정
     try:
-        application.job_queue.run_daily(
-            bot.send_morning_notifications,
-            time=datetime.time(hour=8, minute=0),
-            days=(0, 1, 2, 3, 4, 5, 6)  # 매일
-        )
-        print("✅ 아침 8시 알림 스케줄이 설정되었습니다.")
+        if hasattr(application, 'job_queue') and application.job_queue:
+            application.job_queue.run_daily(
+                bot.send_morning_notifications,
+                time=datetime.time(hour=8, minute=0),
+                days=(0, 1, 2, 3, 4, 5, 6)  # 매일
+            )
+            print("✅ 아침 8시 알림 스케줄이 설정되었습니다.")
+        else:
+            print("⚠️  JobQueue가 설정되지 않아 알림 기능이 비활성화되었습니다.")
     except Exception as e:
         print(f"⚠️  알림 스케줄 설정 중 오류: {e}")
     
