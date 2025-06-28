@@ -44,13 +44,14 @@ class ScheduleBot:
 • 🤖 AI와 함께하는 묵상 (GPT-4o-mini)
 • 💬 ChatGPT와 자유로운 대화
 • 🔔 아침 8시 자동 알림
+• 📢 일정 변경 시 실시간 알림
 
 🚀 **시작하기:**
 /help - 모든 명령어 보기
 /add_schedule - 첫 번째 일정 추가하기
 /daily_reflection - 오늘 회고 작성하기
 
-💡 **팁:** 일정을 추가하면 자동으로 아침 8시에 알림이 설정됩니다!
+💡 **팁:** 일정을 추가/수정/삭제하면 자동으로 알림을 받을 수 있습니다!
 
 무엇을 도와드릴까요? 😊
         """
@@ -66,6 +67,10 @@ class ScheduleBot:
 /view_schedule - 일정 목록 보기
 /edit_schedule - 일정 수정하기
 /delete_schedule - 일정 삭제하기
+
+🔔 **알림 기능**
+• 일정 추가/수정/삭제 시 자동 알림
+• 매일 아침 8시 일정 알림
 
 📖 **회고 작성**
 /daily_reflection - 오늘 하루 회고
@@ -162,6 +167,13 @@ class ScheduleBot:
                         notification_time='08:00',
                         message=notification_message
                     )
+                
+                # 일정 추가 알림 전송
+                await self.send_schedule_change_notification(
+                    context, user_id, 
+                    f"✅ 새 일정이 추가되었습니다!\n\n📅 {state['title']}\n📆 {state['date']}"
+                    + (f"\n⏰ {time}" if time else "")
+                )
                 
                 await update.message.reply_text("✅ 일정이 성공적으로 추가되었습니다!\n\n🔔 아침 8시에 알림이 설정되었습니다.")
             else:
@@ -295,6 +307,13 @@ class ScheduleBot:
             )
             
             if success:
+                # 일정 수정 알림 전송
+                await self.send_schedule_change_notification(
+                    context, user_id, 
+                    f"✏️ 일정이 수정되었습니다!\n\n📅 {state['title']}\n📆 {state['date']}"
+                    + (f"\n⏰ {time}" if time else "")
+                )
+                
                 await update.message.reply_text("✅ 일정이 성공적으로 수정되었습니다!")
             else:
                 await update.message.reply_text("❌ 일정 수정 중 오류가 발생했습니다.")
@@ -341,10 +360,26 @@ class ScheduleBot:
         schedule_id = int(query.data.split('_')[1])
         user_id = query.from_user.id
         
+        # 삭제 전 일정 정보 가져오기
+        schedules = self.db.get_schedules(user_id)
+        schedule_to_delete = None
+        for schedule in schedules:
+            if schedule['id'] == schedule_id:
+                schedule_to_delete = schedule
+                break
+        
         # 일정 삭제
         success = self.db.delete_schedule(schedule_id, user_id)
         
         if success:
+            # 일정 삭제 알림 전송
+            if schedule_to_delete:
+                await self.send_schedule_change_notification(
+                    context, user_id, 
+                    f"🗑️ 일정이 삭제되었습니다!\n\n📅 {schedule_to_delete['title']}\n📆 {schedule_to_delete['date']}"
+                    + (f"\n⏰ {schedule_to_delete['time']}" if schedule_to_delete['time'] else "")
+                )
+            
             await query.edit_message_text("✅ 일정이 성공적으로 삭제되었습니다!")
         else:
             await query.edit_message_text("❌ 일정 삭제 중 오류가 발생했습니다.")
@@ -717,6 +752,17 @@ class ScheduleBot:
             print("✅ 아침 알림 스케줄이 설정되었습니다.")
         except Exception as e:
             print(f"❌ 알림 스케줄 설정 중 오류: {e}")
+
+    async def send_schedule_change_notification(self, context: ContextTypes.DEFAULT_TYPE, user_id: int, message: str):
+        """일정 변경 알림 전송"""
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=message
+            )
+            print(f"📢 일정 변경 알림 전송 완료: 사용자 {user_id}")
+        except Exception as e:
+            print(f"❌ 일정 변경 알림 전송 실패 (사용자 {user_id}): {e}")
 
 def main():
     """메인 함수"""
