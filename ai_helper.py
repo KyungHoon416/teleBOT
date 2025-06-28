@@ -59,7 +59,11 @@ class AIHelper:
             
         except Exception as e:
             print(f"AI 피드백 생성 중 오류: {e}")
-            return "❌ AI 피드백 생성 중 오류가 발생했습니다."
+            # 더 친화적인 오류 메시지 제공
+            if "billing_not_active" in str(e):
+                return "💡 AI 피드백을 사용하려면 OpenAI 계정의 결제 정보를 설정해주세요.\n\n📝 대신 기본 피드백을 제공해드릴게요:\n\n🎉 봇 개발을 완성하셨군요! 정말 대단한 성취입니다. 커서를 통해 새로운 기술을 배우고 실제로 작동하는 봇을 만드신 것은 정말 멋진 일이에요. 앞으로도 이런 도전 정신을 유지하시면 더욱 큰 성장을 이루실 수 있을 거예요! 💪"
+            else:
+                return "💡 AI 피드백 생성 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 피드백을 제공해드릴게요:\n\n🎉 봇 개발을 완성하셨군요! 정말 대단한 성취입니다. 커서를 통해 새로운 기술을 배우고 실제로 작동하는 봇을 만드신 것은 정말 멋진 일이에요. 앞으로도 이런 도전 정신을 유지하시면 더욱 큰 성장을 이루실 수 있을 거예요! 💪"
     
     def get_ai_reflection_guidance(self, user_input: str, conversation_history: List[Dict] = None) -> str:
         """AI와 함께하는 묵상 가이드"""
@@ -94,7 +98,10 @@ class AIHelper:
             
         except Exception as e:
             print(f"AI 묵상 가이드 생성 중 오류: {e}")
-            return "❌ AI 묵상 가이드 생성 중 오류가 발생했습니다."
+            if "billing_not_active" in str(e):
+                return "💡 AI 묵상을 사용하려면 OpenAI 계정의 결제 정보를 설정해주세요.\n\n📝 대신 기본 묵상 가이드를 제공해드릴게요:\n\n당신의 이야기를 들려주셔서 감사합니다. 자기 성찰은 정말 중요한 시간이에요. 더 깊이 있는 대화를 원하시면 OpenAI 계정 설정 후 다시 시도해보세요! 🙏"
+            else:
+                return "💡 AI 묵상 생성 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 묵상 가이드를 제공해드릴게요:\n\n당신의 이야기를 들려주셔서 감사합니다. 자기 성찰은 정말 중요한 시간이에요. 잠시 후 다시 시도해보시거나, 다른 방법으로 자기 성찰을 이어가보세요! 🙏"
     
     def analyze_reflection_patterns(self, reflections: List[Dict]) -> str:
         """회고 패턴 분석 및 인사이트 제공"""
@@ -140,7 +147,10 @@ class AIHelper:
             
         except Exception as e:
             print(f"회고 패턴 분석 중 오류: {e}")
-            return "❌ 회고 패턴 분석 중 오류가 발생했습니다."
+            if "billing_not_active" in str(e):
+                return "💡 회고 패턴 분석을 사용하려면 OpenAI 계정의 결제 정보를 설정해주세요.\n\n📝 대신 기본 분석을 제공해드릴게요:\n\n회고를 꾸준히 작성하고 계시는 모습이 정말 인상적입니다! 패턴 분석을 원하시면 OpenAI 계정 설정 후 다시 시도해보세요. 지금도 충분히 의미있는 회고를 작성하고 계세요! 📊"
+            else:
+                return "💡 회고 패턴 분석 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 분석을 제공해드릴게요:\n\n회고를 꾸준히 작성하고 계시는 모습이 정말 인상적입니다! 잠시 후 다시 시도해보시거나, 지금도 충분히 의미있는 회고를 작성하고 계세요! 📊"
     
     def get_motivational_message(self, user_context: str = "") -> str:
         """동기부여 메시지 생성"""
@@ -176,4 +186,7 @@ class AIHelper:
             
         except Exception as e:
             print(f"동기부여 메시지 생성 중 오류: {e}")
-            return "❌ 동기부여 메시지 생성 중 오류가 발생했습니다." 
+            if "billing_not_active" in str(e):
+                return "💡 AI 동기부여 메시지를 사용하려면 OpenAI 계정의 결제 정보를 설정해주세요.\n\n📝 대신 기본 메시지를 제공해드릴게요:\n\n당신은 정말 대단한 사람입니다! 매일 조금씩이라도 성장하려는 모습이 정말 멋져요. 오늘도 힘내세요! 💪✨"
+            else:
+                return "💡 AI 동기부여 메시지 생성 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 메시지를 제공해드릴게요:\n\n당신은 정말 대단한 사람입니다! 매일 조금씩이라도 성장하려는 모습이 정말 멋져요. 오늘도 힘내세요! 💪✨" 
