@@ -1,5 +1,6 @@
 import logging
 import datetime
+import sqlite3
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters, ConversationHandler
 from database import Database
@@ -19,6 +20,7 @@ WAITING_REFLECTION = range(4, 5)
 WAITING_FEEDBACK = range(5, 6)
 WAITING_EDIT_TITLE, WAITING_EDIT_DESC, WAITING_EDIT_DATE, WAITING_EDIT_TIME = range(6, 10)
 WAITING_AI_REFLECTION = range(10, 11)
+WAITING_CHATGPT = range(11, 12)
 
 class ScheduleBot:
     def __init__(self):
@@ -31,31 +33,26 @@ class ScheduleBot:
         """봇 시작 명령어"""
         user = update.effective_user
         welcome_message = f"""
-안녕하세요 {user.first_name}님! 👋
+🎉 안녕하세요 {user.first_name}님! 환영합니다! 👋
 
-📅 일정관리 & 회고 봇입니다.
+📅 **일정관리 & 회고 봇**에 오신 것을 환영합니다!
 
-주요 기능:
+✨ **주요 기능:**
 • 📝 일정 추가/조회/수정/삭제
 • 📖 당일/주간/월간 회고 작성
 • 💡 회고에 대한 피드백 제공
 • 🤖 AI와 함께하는 묵상 (GPT-4o-mini)
+• 💬 ChatGPT와 자유로운 대화
+• 🔔 아침 8시 자동 알림
 
-사용 가능한 명령어:
-/help - 도움말 보기
-/add_schedule - 일정 추가하기
-/view_schedule - 일정 보기
-/edit_schedule - 일정 수정하기
-/delete_schedule - 일정 삭제하기
+🚀 **시작하기:**
+/help - 모든 명령어 보기
+/add_schedule - 첫 번째 일정 추가하기
 /daily_reflection - 오늘 회고 작성하기
-/weekly_reflection - 주간 회고 작성하기
-/monthly_reflection - 월간 회고 작성하기
-/view_reflections - 회고 보기
-/feedback - 피드백 받기
-/ai_reflection - AI와 함께 묵상하기
-/ai_feedback - AI 피드백 받기
 
-시작하려면 /help를 입력해주세요!
+💡 **팁:** 일정을 추가하면 자동으로 아침 8시에 알림이 설정됩니다!
+
+무엇을 도와드릴까요? 😊
         """
         await update.message.reply_text(welcome_message)
     
@@ -82,6 +79,7 @@ class ScheduleBot:
 🤖 **AI 기능**
 /ai_reflection - AI와 함께 묵상하기
 /ai_feedback - AI 피드백 받기
+/chatgpt - ChatGPT와 자유로운 대화하기
 
 ❓ **기타**
 /help - 이 도움말 보기
@@ -150,7 +148,22 @@ class ScheduleBot:
             )
             
             if success:
-                await update.message.reply_text("✅ 일정이 성공적으로 추가되었습니다!")
+                # 아침 8시 알림 자동 설정
+                schedule_id = self.db.get_last_schedule_id(user_id)
+                if schedule_id:
+                    notification_message = f"🌅 좋은 아침입니다!\n\n📅 오늘의 일정: {state['title']}"
+                    if state['description']:
+                        notification_message += f"\n📄 {state['description']}"
+                    
+                    self.db.add_notification(
+                        user_id=user_id,
+                        schedule_id=schedule_id,
+                        notification_type='morning',
+                        notification_time='08:00',
+                        message=notification_message
+                    )
+                
+                await update.message.reply_text("✅ 일정이 성공적으로 추가되었습니다!\n\n🔔 아침 8시에 알림이 설정되었습니다.")
             else:
                 await update.message.reply_text("❌ 일정 추가 중 오류가 발생했습니다.")
             
@@ -622,6 +635,88 @@ class ScheduleBot:
         
         await update.message.reply_text("❌ 작업이 취소되었습니다.")
         return ConversationHandler.END
+    
+    async def chatgpt(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ChatGPT 대화 시작"""
+        user_id = update.effective_user.id
+        
+        if not self.ai_helper.is_available():
+            await update.message.reply_text("❌ ChatGPT 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요.")
+            return ConversationHandler.END
+        
+        # 대화 히스토리 초기화
+        if user_id not in self.ai_conversations:
+            self.ai_conversations[user_id] = []
+        
+        await update.message.reply_text("🤖 ChatGPT와 대화를 시작합니다!\n\n💬 무엇이든 물어보세요. 대화를 종료하려면 /cancel을 입력하세요.")
+        return WAITING_CHATGPT
+    
+    async def chatgpt_response(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """ChatGPT 응답 처리"""
+        user_id = update.effective_user.id
+        user_message = update.message.text
+        
+        if not self.ai_conversations.get(user_id):
+            self.ai_conversations[user_id] = []
+        
+        # 사용자 메시지를 대화 히스토리에 추가
+        self.ai_conversations[user_id].append({"role": "user", "content": user_message})
+        
+        # ChatGPT 응답 생성
+        response = self.ai_helper.chat_with_gpt(user_message, self.ai_conversations[user_id])
+        
+        # AI 응답을 대화 히스토리에 추가
+        self.ai_conversations[user_id].append({"role": "assistant", "content": response})
+        
+        # 대화 히스토리가 너무 길어지면 최근 10개만 유지
+        if len(self.ai_conversations[user_id]) > 20:
+            self.ai_conversations[user_id] = self.ai_conversations[user_id][-20:]
+        
+        await update.message.reply_text(response)
+        return WAITING_CHATGPT
+    
+    async def send_morning_notifications(self, context: ContextTypes.DEFAULT_TYPE):
+        """아침 알림 전송"""
+        try:
+            # 모든 활성 알림 조회
+            with sqlite3.connect(self.db.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT DISTINCT n.user_id, n.message
+                    FROM notifications n
+                    WHERE n.notification_type = 'morning' 
+                    AND n.is_active = 1
+                    AND n.notification_time = '08:00'
+                ''')
+                
+                notifications = cursor.fetchall()
+                
+                for user_id, message in notifications:
+                    try:
+                        await context.bot.send_message(
+                            chat_id=user_id,
+                            text=message
+                        )
+                        print(f"🌅 아침 알림 전송 완료: 사용자 {user_id}")
+                    except Exception as e:
+                        print(f"❌ 알림 전송 실패 (사용자 {user_id}): {e}")
+                        
+        except Exception as e:
+            print(f"❌ 아침 알림 전송 중 오류: {e}")
+    
+    async def schedule_morning_notifications(self, context: ContextTypes.DEFAULT_TYPE):
+        """아침 알림 스케줄링"""
+        try:
+            # 매일 아침 8시에 알림 전송
+            job_queue = context.job_queue
+            job_queue.run_daily(
+                self.send_morning_notifications,
+                time=datetime.time(hour=8, minute=0),
+                days=(0, 1, 2, 3, 4, 5, 6)  # 매일
+            )
+            print("✅ 아침 알림 스케줄이 설정되었습니다.")
+        except Exception as e:
+            print(f"❌ 알림 스케줄 설정 중 오류: {e}")
 
 def main():
     """메인 함수"""
@@ -690,6 +785,15 @@ def main():
         fallbacks=[CommandHandler('cancel', bot.cancel)]
     )
     
+    # ChatGPT 대화 핸들러
+    chatgpt_handler = ConversationHandler(
+        entry_points=[CommandHandler('chatgpt', bot.chatgpt)],
+        states={
+            WAITING_CHATGPT: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.chatgpt_response)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    
     # 핸들러 등록
     application.add_handler(CommandHandler("start", bot.start))
     application.add_handler(CommandHandler("help", bot.help_command))
@@ -697,6 +801,7 @@ def main():
     application.add_handler(edit_handler)
     application.add_handler(reflection_handler)
     application.add_handler(ai_reflection_handler)
+    application.add_handler(chatgpt_handler)
     application.add_handler(CommandHandler("view_schedule", bot.view_schedule))
     application.add_handler(CommandHandler("delete_schedule", bot.delete_schedule))
     application.add_handler(CommandHandler("view_reflections", bot.view_reflections))
@@ -714,6 +819,18 @@ def main():
         print("✅ AI 기능이 활성화되었습니다.")
     else:
         print("⚠️  AI 기능이 비활성화되었습니다. OpenAI API 키를 설정해주세요.")
+    
+    # 알림 스케줄링 설정
+    try:
+        application.job_queue.run_daily(
+            bot.send_morning_notifications,
+            time=datetime.time(hour=8, minute=0),
+            days=(0, 1, 2, 3, 4, 5, 6)  # 매일
+        )
+        print("✅ 아침 8시 알림 스케줄이 설정되었습니다.")
+    except Exception as e:
+        print(f"⚠️  알림 스케줄 설정 중 오류: {e}")
+    
     application.run_polling()
 
 if __name__ == '__main__':

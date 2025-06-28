@@ -51,6 +51,21 @@ class Database:
                 )
             ''')
             
+            # 알림 테이블
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    schedule_id INTEGER,
+                    notification_type TEXT NOT NULL, -- 'morning', 'custom'
+                    notification_time TEXT NOT NULL, -- '08:00' 형식
+                    message TEXT NOT NULL,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (schedule_id) REFERENCES schedules (id)
+                )
+            ''')
+            
             conn.commit()
     
     def add_schedule(self, user_id: int, title: str, description: str, date: str, time: Optional[str] = None) -> bool:
@@ -198,4 +213,65 @@ class Database:
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
         except Exception as e:
             print(f"피드백 조회 오류: {e}")
-            return [] 
+            return []
+    
+    def add_notification(self, user_id: int, schedule_id: int, notification_type: str, notification_time: str, message: str) -> bool:
+        """알림 추가"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO notifications (user_id, schedule_id, notification_type, notification_time, message)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (user_id, schedule_id, notification_type, notification_time, message))
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"알림 추가 오류: {e}")
+            return False
+    
+    def get_notifications(self, user_id: int, notification_type: Optional[str] = None) -> List[Dict]:
+        """알림 조회"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                if notification_type:
+                    cursor.execute('''
+                        SELECT n.*, s.title as schedule_title 
+                        FROM notifications n
+                        LEFT JOIN schedules s ON n.schedule_id = s.id
+                        WHERE n.user_id = ? AND n.notification_type = ? AND n.is_active = 1
+                        ORDER BY n.notification_time ASC
+                    ''', (user_id, notification_type))
+                else:
+                    cursor.execute('''
+                        SELECT n.*, s.title as schedule_title 
+                        FROM notifications n
+                        LEFT JOIN schedules s ON n.schedule_id = s.id
+                        WHERE n.user_id = ? AND n.is_active = 1
+                        ORDER BY n.notification_time ASC
+                    ''', (user_id,))
+                
+                columns = [description[0] for description in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"알림 조회 오류: {e}")
+            return []
+    
+    def get_last_schedule_id(self, user_id: int) -> Optional[int]:
+        """사용자의 마지막 일정 ID 조회"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT id FROM schedules 
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ''', (user_id,))
+                
+                result = cursor.fetchone()
+                return result[0] if result else None
+        except Exception as e:
+            print(f"마지막 일정 ID 조회 오류: {e}")
+            return None 
