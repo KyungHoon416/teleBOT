@@ -319,22 +319,18 @@ def main():
     else:
         print("⚠️  AI 기능이 비활성화되었습니다. OpenAI API 키를 설정해주세요.")
     
-    # Render 환경에서는 webhook 사용, 로컬에서는 polling 사용
-    if os.getenv('RENDER'):
-        # Render 환경에서 webhook 사용
-        port = int(os.environ.get('PORT', 8080))
-        webhook_url = os.environ.get('WEBHOOK_URL', f"https://telegram-bot.onrender.com/{BOT_TOKEN}")
-        print(f"🌐 Webhook URL: {webhook_url}")
-        print(f"🔌 Port: {port}")
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path=BOT_TOKEN,
-            webhook_url=webhook_url
-        )
-    else:
-        # 로컬 환경에서 polling 사용
+    # 안전한 polling 설정으로 시작
+    try:
         print("🔄 Polling 모드로 시작합니다...")
+        application.run_polling(
+            drop_pending_updates=True,
+            timeout=30,
+            read_timeout=30,
+            write_timeout=30
+        )
+    except Exception as e:
+        print(f"❌ 봇 실행 중 오류 발생: {e}")
+        print("🔄 기본 설정으로 재시작합니다...")
         application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
