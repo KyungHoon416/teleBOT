@@ -359,14 +359,14 @@ def main():
     
     # Render 환경에서는 webhook 사용, 로컬에서는 polling 사용
     if os.getenv('RENDER'):
-        # Render 환경에서 webhook 사용
         port = int(os.environ.get('PORT', 8080))
-        print(f"🌐 Webhook 모드로 시작합니다. Port: {port}")
+        webhook_url = "https://telebot-svrq.onrender.com/" + BOT_TOKEN
+        print(f"🌐 Webhook 모드로 시작합니다. Port: {port}, Webhook URL: {webhook_url}")
         application.run_webhook(
             listen="0.0.0.0",
             port=port,
             url_path=BOT_TOKEN,
-            webhook_url=f"https://telegram-bot.onrender.com/{BOT_TOKEN}"
+            webhook_url=webhook_url
         )
     else:
         # 로컬 환경에서 polling 사용
