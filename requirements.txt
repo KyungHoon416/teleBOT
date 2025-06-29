@@ -1,5 +1,32 @@
+# Telegram Bot 관련
 python-telegram-bot[job-queue]==22.1
+
+# 환경 변수 관리
 python-dotenv==1.0.0
+
+# 스케줄링
 schedule==1.2.0
+
+# AI 기능 (OpenAI API)
 openai==1.82.0
-pytz==2024.1 
+
+# 시간대 처리
+pytz==2024.1
+
+# 데이터베이스 (SQLite3는 Python 기본 라이브러리)
+# sqlite3는 Python 기본 라이브러리이므로 별도 설치 불필요
+
+# 로깅 (logging은 Python 기본 라이브러리)
+# logging은 Python 기본 라이브러리이므로 별도 설치 불필요
+
+# 날짜/시간 처리 (datetime은 Python 기본 라이브러리)
+# datetime은 Python 기본 라이브러리이므로 별도 설치 불필요
+
+# 랜덤 함수 (random은 Python 기본 라이브러리)
+# random은 Python 기본 라이브러리이므로 별도 설치 불필요
+
+# 파일 시스템 락 (fcntl은 Unix 시스템에서 기본 제공)
+# fcntl은 Unix 시스템에서 기본 제공되므로 별도 설치 불필요
+
+# 시스템 관련 (os, sys는 Python 기본 라이브러리)
+# os, sys는 Python 기본 라이브러리이므로 별도 설치 불필요 
