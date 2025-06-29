@@ -320,22 +320,13 @@ def main():
     
     # polling 설정 - 여러 인스턴스 실행 방지
     try:
-        application.run_polling(
-            drop_pending_updates=True,  # 이전 업데이트 무시
-            close_loop=False,
-            timeout=30,
-            read_timeout=30,
-            write_timeout=30,
-            connect_timeout=30,
-            pool_timeout=30
-        )
+        # 더 간단한 설정으로 시작
+        application.run_polling(drop_pending_updates=True)
     except Exception as e:
         print(f"❌ 봇 실행 중 오류 발생: {e}")
-        # 재시도 로직
-        import time
-        time.sleep(5)
-        print("🔄 봇을 재시작합니다...")
-        application.run_polling(drop_pending_updates=True)
+        print("🔄 기본 설정으로 재시작합니다...")
+        # 기본 설정으로 재시도
+        application.run_polling()
 
 if __name__ == '__main__':
     main() 
