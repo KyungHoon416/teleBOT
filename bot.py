@@ -121,155 +121,193 @@ class ScheduleBot:
         await update.message.reply_text(help_text)
     
     async def add_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """일정 추가 시작"""
-        if not update.message:
+        try:
+            if not update.message:
+                return ConversationHandler.END
+            await update.message.reply_text("📝 일정의 제목을 입력해주세요:")
+            return WAITING_SCHEDULE_TITLE
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일정 추가 중 에러 발생: {e}")
+            print(f"add_schedule error: {e}")
             return ConversationHandler.END
-        await update.message.reply_text("📝 일정의 제목을 입력해주세요:")
-        return WAITING_SCHEDULE_TITLE
     
     async def schedule_title(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """일정 제목 입력 처리"""
-        if not update.effective_user or not update.message:
+        try:
+            if not update.effective_user or not update.message:
+                return ConversationHandler.END
+            user_id = update.effective_user.id
+            title = update.message.text
+            self.user_states[user_id] = {'title': title}
+            await update.message.reply_text("📄 일정에 대한 설명을 입력해주세요 (선택사항):")
+            return WAITING_SCHEDULE_DESC
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일정 제목 처리 중 에러 발생: {e}")
+            print(f"schedule_title error: {e}")
             return ConversationHandler.END
-        user_id = update.effective_user.id
-        title = update.message.text
-        
-        self.user_states[user_id] = {'title': title}
-        await update.message.reply_text("📄 일정에 대한 설명을 입력해주세요 (선택사항):")
-        return WAITING_SCHEDULE_DESC
     
     async def schedule_description(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """일정 설명 입력 처리"""
-        if not update.effective_user or not update.message:
+        try:
+            if not update.effective_user or not update.message:
+                return ConversationHandler.END
+            user_id = update.effective_user.id
+            description = update.message.text
+            self.user_states[user_id]['description'] = description
+            await update.message.reply_text("📅 일정 날짜를 입력해주세요 (YYYY-MM-DD 형식):")
+            return WAITING_SCHEDULE_DATE
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일정 설명 처리 중 에러 발생: {e}")
+            print(f"schedule_description error: {e}")
             return ConversationHandler.END
-        user_id = update.effective_user.id
-        description = update.message.text
-        
-        self.user_states[user_id]['description'] = description
-        await update.message.reply_text("📅 일정 날짜를 입력해주세요 (YYYY-MM-DD 형식):")
-        return WAITING_SCHEDULE_DATE
     
     async def schedule_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """일정 날짜 입력 처리"""
-        if not update.effective_user or not update.message:
-            return ConversationHandler.END
-        user_id = update.effective_user.id
-        date_text = update.message.text
-        
         try:
-            # 날짜 형식 검증
-            datetime.datetime.strptime(date_text, '%Y-%m-%d')
-            self.user_states[user_id]['date'] = date_text
-            await update.message.reply_text("⏰ 일정 시간을 입력해주세요 (HH:MM 형식, 선택사항):")
-            return WAITING_SCHEDULE_TIME
-        except ValueError:
-            await update.message.reply_text("❌ 잘못된 날짜 형식입니다. YYYY-MM-DD 형식으로 입력해주세요.")
-            return WAITING_SCHEDULE_DATE
+            if not update.effective_user or not update.message:
+                return ConversationHandler.END
+            user_id = update.effective_user.id
+            date_text = update.message.text
+            try:
+                datetime.datetime.strptime(date_text, '%Y-%m-%d')
+                self.user_states[user_id]['date'] = date_text
+                await update.message.reply_text("⏰ 일정 시간을 입력해주세요 (HH:MM 형식, 선택사항):")
+                return WAITING_SCHEDULE_TIME
+            except ValueError:
+                await update.message.reply_text("❌ 잘못된 날짜 형식입니다. YYYY-MM-DD 형식으로 입력해주세요.")
+                return WAITING_SCHEDULE_DATE
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일정 날짜 처리 중 에러 발생: {e}")
+            print(f"schedule_date error: {e}")
+            return ConversationHandler.END
     
     async def schedule_time(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """일정 시간 입력 처리 및 저장"""
-        if not update.effective_user or not update.message:
-            return ConversationHandler.END
-        user_id = update.effective_user.id
-        time_text = update.message.text
         try:
-            if time_text.strip():
-                # 시간 형식 검증
-                datetime.datetime.strptime(time_text, '%H:%M')
-                time = time_text
-            else:
-                time = None
-            # 일정 저장
-            state = self.user_states[user_id]
-            success = self.db.add_schedule(
-                user_id=user_id,
-                title=state['title'],
-                description=state['description'],
-                date=state['date'],
-                time=time
-            )
-            if success:
-                await update.message.reply_text("✅ 일정이 성공적으로 추가되었습니다!")
-            else:
-                await update.message.reply_text("❌ 일정 추가 중 오류가 발생했습니다.")
-            # 상태 초기화
-            if user_id in self.user_states:
-                del self.user_states[user_id]
+            if not update.effective_user or not update.message:
+                return ConversationHandler.END
+            user_id = update.effective_user.id
+            time_text = update.message.text
+            try:
+                if time_text.strip():
+                    datetime.datetime.strptime(time_text, '%H:%M')
+                    time = time_text
+                else:
+                    time = None
+                state = self.user_states[user_id]
+                success = self.db.add_schedule(
+                    user_id=user_id,
+                    title=state['title'],
+                    description=state['description'],
+                    date=state['date'],
+                    time=time
+                )
+                if success:
+                    await update.message.reply_text("✅ 일정이 성공적으로 추가되었습니다!")
+                else:
+                    await update.message.reply_text("❌ 일정 추가 중 오류가 발생했습니다.")
+                if user_id in self.user_states:
+                    del self.user_states[user_id]
+                return ConversationHandler.END
+            except ValueError:
+                await update.message.reply_text("❌ 잘못된 시간 형식입니다. HH:MM 형식으로 입력해주세요.")
+                return WAITING_SCHEDULE_TIME
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일정 시간 처리 중 에러 발생: {e}")
+            print(f"schedule_time error: {e}")
             return ConversationHandler.END
-        except ValueError:
-            await update.message.reply_text("❌ 잘못된 시간 형식입니다. HH:MM 형식으로 입력해주세요.")
-            return WAITING_SCHEDULE_TIME
     
     async def view_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """일정 조회"""
-        if not update.effective_user or not update.message:
-            return
-        user_id = update.effective_user.id
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
-        today_schedules = self.db.get_schedules(user_id, today)
-        if not today_schedules:
-            await update.message.reply_text("📅 오늘 등록된 일정이 없습니다.")
-            return
-        for schedule in today_schedules:
-            time_str = f"⏰ {schedule['time']} " if schedule['time'] else ""
-            desc_str = f"\n  📄 {schedule['description']}" if schedule['description'] else ""
-            msg = f"• {time_str}{schedule['title']}{desc_str}"
-            await update.message.reply_text(msg)
+        try:
+            if not update.effective_user or not update.message:
+                return
+            user_id = update.effective_user.id
+            today = datetime.datetime.now().strftime('%Y-%m-%d')
+            today_schedules = self.db.get_schedules(user_id, today)
+            if not today_schedules:
+                await update.message.reply_text("📅 오늘 등록된 일정이 없습니다.")
+                return
+            for schedule in today_schedules:
+                time_str = f"⏰ {schedule['time']} " if schedule['time'] else ""
+                desc_str = f"\n  📄 {schedule['description']}" if schedule['description'] else ""
+                msg = f"• {time_str}{schedule['title']}{desc_str}"
+                await update.message.reply_text(msg)
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일정 조회 중 에러 발생: {e}")
+            print(f"view_schedule error: {e}")
     
     async def daily_reflection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """일일 회고(T형) 시작"""
-        if not update.effective_user or not update.message:
+        try:
+            if not update.effective_user or not update.message:
+                return ConversationHandler.END
+            user_id = update.effective_user.id
+            today = datetime.datetime.now().strftime('%Y-%m-%d')
+            existing_reflections = self.db.get_reflections(user_id, 'daily', today)
+            if existing_reflections:
+                await update.message.reply_text("📖 오늘 이미 회고를 작성하셨습니다. 수정하시겠습니까?")
+                return ConversationHandler.END
+            context.user_data['reflection'] = {}
+            await update.message.reply_text("1️⃣ 오늘 있었던 일(사실)을 적어주세요!")
+            return WAITING_DAILY_FACT
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일일 회고 시작 중 에러 발생: {e}")
+            print(f"daily_reflection error: {e}")
             return ConversationHandler.END
-        user_id = update.effective_user.id
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
-        existing_reflections = self.db.get_reflections(user_id, 'daily', today)
-        if existing_reflections:
-            await update.message.reply_text("📖 오늘 이미 회고를 작성하셨습니다. 수정하시겠습니까?")
-            return ConversationHandler.END
-        context.user_data['reflection'] = {}
-        await update.message.reply_text("1️⃣ 오늘 있었던 일(사실)을 적어주세요!")
-        return WAITING_DAILY_FACT
 
     async def daily_fact(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not update.message:
+        try:
+            if not update.message:
+                return ConversationHandler.END
+            context.user_data['reflection']['fact'] = update.message.text
+            await update.message.reply_text("2️⃣ 그 일에 대해 어떻게 생각하셨나요?")
+            return WAITING_DAILY_THINK
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일일 회고(사실) 처리 중 에러 발생: {e}")
+            print(f"daily_fact error: {e}")
             return ConversationHandler.END
-        context.user_data['reflection']['fact'] = update.message.text
-        await update.message.reply_text("2️⃣ 그 일에 대해 어떻게 생각하셨나요?")
-        return WAITING_DAILY_THINK
 
     async def daily_think(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not update.message:
+        try:
+            if not update.message:
+                return ConversationHandler.END
+            context.user_data['reflection']['think'] = update.message.text
+            await update.message.reply_text("3️⃣ 내일은 무엇을 실천하고 싶으신가요?")
+            return WAITING_DAILY_TODO
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일일 회고(생각) 처리 중 에러 발생: {e}")
+            print(f"daily_think error: {e}")
             return ConversationHandler.END
-        context.user_data['reflection']['think'] = update.message.text
-        await update.message.reply_text("3️⃣ 내일은 무엇을 실천하고 싶으신가요?")
-        return WAITING_DAILY_TODO
 
     async def daily_todo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not update.effective_user or not update.message:
+        try:
+            if not update.effective_user or not update.message:
+                return ConversationHandler.END
+            user_id = update.effective_user.id
+            today = datetime.datetime.now().strftime('%Y-%m-%d')
+            context.user_data['reflection']['todo'] = update.message.text
+            r = context.user_data['reflection']
+            content = f"[사실] {r['fact']}\n[생각] {r['think']}\n[실천] {r['todo']}"
+            success = self.db.add_reflection(user_id, 'daily', content, today)
+            if success:
+                await update.message.reply_text("✅ 오늘의 T형 회고가 저장되었습니다!")
+            else:
+                await update.message.reply_text("❌ 회고 저장 중 오류가 발생했습니다.")
+            context.user_data['reflection'] = {}
             return ConversationHandler.END
-        user_id = update.effective_user.id
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
-        context.user_data['reflection']['todo'] = update.message.text
-        r = context.user_data['reflection']
-        content = f"[사실] {r['fact']}\n[생각] {r['think']}\n[실천] {r['todo']}"
-        success = self.db.add_reflection(user_id, 'daily', content, today)
-        if success:
-            await update.message.reply_text("✅ 오늘의 T형 회고가 저장되었습니다!")
-        else:
-            await update.message.reply_text("❌ 회고 저장 중 오류가 발생했습니다.")
-        context.user_data['reflection'] = {}
-        return ConversationHandler.END
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 일일 회고(실천) 처리 중 에러 발생: {e}")
+            print(f"daily_todo error: {e}")
+            return ConversationHandler.END
     
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """대화 취소"""
-        user_id = update.effective_user.id
-        if user_id in self.user_states:
-            del self.user_states[user_id]
-        if user_id in self.ai_conversations:
-            del self.ai_conversations[user_id]
-        
-        await update.message.reply_text("❌ 작업이 취소되었습니다.")
-        return ConversationHandler.END
+        try:
+            user_id = update.effective_user.id
+            if user_id in self.user_states:
+                del self.user_states[user_id]
+            if user_id in self.ai_conversations:
+                del self.ai_conversations[user_id]
+            await update.message.reply_text("❌ 작업이 취소되었습니다.")
+            return ConversationHandler.END
+        except Exception as e:
+            await update.message.reply_text(f"[오류] 취소 처리 중 에러 발생: {e}")
+            print(f"cancel error: {e}")
+            return ConversationHandler.END
 
 def main():
     """메인 함수"""
