@@ -1,5 +1,5 @@
-# Telegram Bot 관련
-python-telegram-bot[job-queue]==22.1
+# Telegram Bot 관련 (webhook 지원 포함)
+python-telegram-bot[webhooks]==22.1
 
 # 환경 변수 관리
 python-dotenv==1.0.0
