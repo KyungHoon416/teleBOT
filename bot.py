@@ -3,6 +3,7 @@ import datetime
 import sqlite3
 import pytz
 import random
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters, ConversationHandler
 from database import Database
@@ -278,7 +279,7 @@ def main():
     
     bot = ScheduleBot()
     
-    # Application 생성 - 여러 인스턴스 실행 방지를 위한 설정
+    # Application 생성
     application = Application.builder().token(BOT_TOKEN).build()
     
     # 일정 추가 대화 핸들러
@@ -311,22 +312,26 @@ def main():
     application.add_handler(reflection_handler)
     application.add_handler(CommandHandler("view_schedule", bot.view_schedule))
     
-    # 봇 시작 - 여러 인스턴스 실행 방지를 위한 설정
+    # 봇 시작
     print("🤖 텔레그램 봇이 시작되었습니다...")
     if bot.ai_helper.is_available():
         print("✅ AI 기능이 활성화되었습니다.")
     else:
         print("⚠️  AI 기능이 비활성화되었습니다. OpenAI API 키를 설정해주세요.")
     
-    # polling 설정 - 여러 인스턴스 실행 방지
-    try:
-        # 더 간단한 설정으로 시작
+    # Render 환경에서는 webhook 사용, 로컬에서는 polling 사용
+    if os.getenv('RENDER'):
+        # Render 환경에서 webhook 사용
+        port = int(os.environ.get('PORT', 8080))
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path=BOT_TOKEN,
+            webhook_url=f"https://telegram-bot.onrender.com/{BOT_TOKEN}"
+        )
+    else:
+        # 로컬 환경에서 polling 사용
         application.run_polling(drop_pending_updates=True)
-    except Exception as e:
-        print(f"❌ 봇 실행 중 오류 발생: {e}")
-        print("🔄 기본 설정으로 재시작합니다...")
-        # 기본 설정으로 재시도
-        application.run_polling()
 
 if __name__ == '__main__':
     main() 
