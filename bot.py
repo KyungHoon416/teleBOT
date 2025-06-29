@@ -323,14 +323,18 @@ def main():
     if os.getenv('RENDER'):
         # Render 환경에서 webhook 사용
         port = int(os.environ.get('PORT', 8080))
+        webhook_url = os.environ.get('WEBHOOK_URL', f"https://telegram-bot.onrender.com/{BOT_TOKEN}")
+        print(f"🌐 Webhook URL: {webhook_url}")
+        print(f"🔌 Port: {port}")
         application.run_webhook(
             listen="0.0.0.0",
             port=port,
             url_path=BOT_TOKEN,
-            webhook_url=f"https://telegram-bot.onrender.com/{BOT_TOKEN}"
+            webhook_url=webhook_url
         )
     else:
         # 로컬 환경에서 polling 사용
+        print("🔄 Polling 모드로 시작합니다...")
         application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
