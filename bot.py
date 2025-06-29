@@ -4,8 +4,6 @@ import sqlite3
 import pytz
 import random
 import os
-import fcntl
-import sys
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters, ConversationHandler
 from database import Database
@@ -30,26 +28,6 @@ WAITING_AI_REFLECTION = range(20, 21)
 WAITING_CHATGPT = range(21, 22)
 WAITING_ROUTINE_TITLE, WAITING_ROUTINE_DESC, WAITING_ROUTINE_FREQ, WAITING_ROUTINE_DAYS, WAITING_ROUTINE_DATE, WAITING_ROUTINE_TIME = range(22, 28)
 WAITING_VOICE_REFLECTION, WAITING_IMAGE_REFLECTION = range(28, 30)
-
-def acquire_lock():
-    """파일 기반 락을 획득하여 여러 인스턴스 실행을 방지"""
-    lock_file = "bot.lock"
-    try:
-        lock_fd = os.open(lock_file, os.O_CREAT | os.O_TRUNC | os.O_RDWR)
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return lock_fd
-    except (OSError, IOError):
-        print("❌ 다른 봇 인스턴스가 이미 실행 중입니다.")
-        sys.exit(1)
-
-def release_lock(lock_fd):
-    """락을 해제"""
-    try:
-        fcntl.flock(lock_fd, fcntl.LOCK_UN)
-        os.close(lock_fd)
-        os.unlink("bot.lock")
-    except:
-        pass
 
 class ScheduleBot:
     def __init__(self):
@@ -299,69 +277,58 @@ def main():
         print("❌ BOT_TOKEN이 설정되지 않았습니다. .env 파일을 확인해주세요.")
         return
     
-    # 파일 기반 락 획득
-    lock_fd = acquire_lock()
+    bot = ScheduleBot()
     
+    # Application 생성
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    # 일정 추가 대화 핸들러
+    schedule_handler = ConversationHandler(
+        entry_points=[CommandHandler('add_schedule', bot.add_schedule)],
+        states={
+            WAITING_SCHEDULE_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.schedule_title)],
+            WAITING_SCHEDULE_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.schedule_description)],
+            WAITING_SCHEDULE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.schedule_date)],
+            WAITING_SCHEDULE_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.schedule_time)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    
+    # 회고 작성 대화 핸들러
+    reflection_handler = ConversationHandler(
+        entry_points=[CommandHandler('daily_reflection', bot.daily_reflection)],
+        states={
+            WAITING_DAILY_FACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.daily_fact)],
+            WAITING_DAILY_THINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.daily_think)],
+            WAITING_DAILY_TODO: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.daily_todo)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    
+    # 핸들러 등록
+    application.add_handler(CommandHandler("start", bot.start))
+    application.add_handler(CommandHandler("help", bot.help_command))
+    application.add_handler(schedule_handler)
+    application.add_handler(reflection_handler)
+    application.add_handler(CommandHandler("view_schedule", bot.view_schedule))
+    
+    # 봇 시작
+    print("🤖 텔레그램 봇이 시작되었습니다...")
+    if bot.ai_helper.is_available():
+        print("✅ AI 기능이 활성화되었습니다.")
+    else:
+        print("⚠️  AI 기능이 비활성화되었습니다. OpenAI API 키를 설정해주세요.")
+    
+    # 안전한 polling 설정으로 시작
     try:
-        bot = ScheduleBot()
-        
-        # Application 생성
-        application = Application.builder().token(BOT_TOKEN).build()
-        
-        # 일정 추가 대화 핸들러
-        schedule_handler = ConversationHandler(
-            entry_points=[CommandHandler('add_schedule', bot.add_schedule)],
-            states={
-                WAITING_SCHEDULE_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.schedule_title)],
-                WAITING_SCHEDULE_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.schedule_description)],
-                WAITING_SCHEDULE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.schedule_date)],
-                WAITING_SCHEDULE_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.schedule_time)],
-            },
-            fallbacks=[CommandHandler('cancel', bot.cancel)]
+        print("🔄 Polling 모드로 시작합니다...")
+        application.run_polling(
+            drop_pending_updates=True
         )
-        
-        # 회고 작성 대화 핸들러
-        reflection_handler = ConversationHandler(
-            entry_points=[CommandHandler('daily_reflection', bot.daily_reflection)],
-            states={
-                WAITING_DAILY_FACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.daily_fact)],
-                WAITING_DAILY_THINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.daily_think)],
-                WAITING_DAILY_TODO: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.daily_todo)],
-            },
-            fallbacks=[CommandHandler('cancel', bot.cancel)]
-        )
-        
-        # 핸들러 등록
-        application.add_handler(CommandHandler("start", bot.start))
-        application.add_handler(CommandHandler("help", bot.help_command))
-        application.add_handler(schedule_handler)
-        application.add_handler(reflection_handler)
-        application.add_handler(CommandHandler("view_schedule", bot.view_schedule))
-        
-        # 봇 시작
-        print("🤖 텔레그램 봇이 시작되었습니다...")
-        if bot.ai_helper.is_available():
-            print("✅ AI 기능이 활성화되었습니다.")
-        else:
-            print("⚠️  AI 기능이 비활성화되었습니다. OpenAI API 키를 설정해주세요.")
-        
-        # 안전한 polling 설정으로 시작
-        try:
-            print("🔄 Polling 모드로 시작합니다...")
-            application.run_polling(
-                drop_pending_updates=True,
-                timeout=30,
-                read_timeout=30,
-                write_timeout=30
-            )
-        except Exception as e:
-            print(f"❌ 봇 실행 중 오류 발생: {e}")
-            print("🔄 기본 설정으로 재시작합니다...")
-            application.run_polling(drop_pending_updates=True)
-    
-    finally:
-        # 락 해제
-        release_lock(lock_fd)
+    except Exception as e:
+        print(f"❌ 봇 실행 중 오류 발생: {e}")
+        print("🔄 기본 설정으로 재시작합니다...")
+        application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main() 
