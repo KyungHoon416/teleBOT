@@ -319,11 +319,23 @@ def main():
         print("⚠️  AI 기능이 비활성화되었습니다. OpenAI API 키를 설정해주세요.")
     
     # polling 설정 - 여러 인스턴스 실행 방지
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True,  # 이전 업데이트 무시
-        close_loop=False
-    )
+    try:
+        application.run_polling(
+            drop_pending_updates=True,  # 이전 업데이트 무시
+            close_loop=False,
+            timeout=30,
+            read_timeout=30,
+            write_timeout=30,
+            connect_timeout=30,
+            pool_timeout=30
+        )
+    except Exception as e:
+        print(f"❌ 봇 실행 중 오류 발생: {e}")
+        # 재시도 로직
+        import time
+        time.sleep(5)
+        print("🔄 봇을 재시작합니다...")
+        application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main() 
