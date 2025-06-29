@@ -227,4 +227,187 @@ class AIHelper:
             if "billing_not_active" in str(e):
                 return "💡 ChatGPT와 대화하려면 OpenAI 계정의 결제 정보를 설정해주세요.\n\n📝 대신 기본 응답을 제공해드릴게요:\n\n안녕하세요! ChatGPT와 대화를 원하시는군요. OpenAI 계정 설정 후 다시 시도해보세요! 🤖"
             else:
-                return "💡 ChatGPT 대화 중 일시적인 오류가 발생했습니다.\n\n📝 잠시 후 다시 시도해보시거나, 다른 기능을 이용해보세요! 🤖" 
+                return "💡 ChatGPT 대화 중 일시적인 오류가 발생했습니다.\n\n📝 잠시 후 다시 시도해보시거나, 다른 기능을 이용해보세요! 🤖"
+    
+    def get_completion_motivation(self, schedule_title: str) -> str:
+        """일정 완료 시 AI 동기부여 메시지 생성"""
+        if not self.is_available():
+            return ""
+        
+        try:
+            prompt = f"""
+사용자가 "{schedule_title}" 일정을 완료했습니다. 
+따뜻하고 격려적인 동기부여 메시지를 50-80자 내외로 한국어로 작성해주세요.
+
+메시지는:
+- 성취를 축하하는 톤
+- 구체적이고 개인화된 내용
+- 미래에 대한 긍정적 격려
+- 따뜻하고 공감적인 어조
+
+를 포함해야 합니다.
+"""
+            
+            response = self.client.chat.completions.create(
+                model=GPT_MODEL,
+                messages=[
+                    {"role": "system", "content": "당신은 따뜻하고 격려적인 멘토입니다. 사용자의 성취를 축하하고 동기부여를 제공합니다."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=100,
+                temperature=0.8
+            )
+            
+            return response.choices[0].message.content.strip()
+        
+        except Exception as e:
+            print(f"AI 완료 동기부여 생성 오류: {e}")
+            return ""
+    
+    def get_schedule_summary(self, schedules: List[Dict]) -> str:
+        """일정 데이터 기반 AI 요약/분석"""
+        if not self.is_available():
+            return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
+        
+        if not schedules:
+            return "분석할 일정이 없습니다."
+        
+        try:
+            # 일정 데이터 정리
+            schedule_texts = []
+            for schedule in schedules[:20]:  # 최근 20개만 분석
+                status = "✅ 완료" if schedule.get('is_done') else "⏳ 진행중"
+                schedule_texts.append(f"[{schedule['date']}] {schedule['title']} - {status}")
+            
+            analysis_text = "\n".join(schedule_texts)
+            
+            prompt = f"""
+사용자의 일정 기록을 분석하여 다음과 같은 인사이트를 제공해주세요:
+
+1. **일정 패턴**: 자주 등록하는 일정 유형이나 시간대
+2. **완료율 분석**: 전체적인 일정 완료율과 개선점
+3. **생산성 인사이트**: 가장 생산적인 시간대나 일정 유형
+4. **개선 제안**: 더 나은 일정 관리를 위한 구체적 제안
+
+일정 기록:
+{analysis_text}
+
+위 내용을 바탕으로 300-400자 내외의 분석 결과를 한국어로 제공해주세요.
+"""
+            
+            response = self.client.chat.completions.create(
+                model=GPT_MODEL,
+                messages=[
+                    {"role": "system", "content": "당신은 일정 관리 전문가입니다. 사용자의 일정 패턴을 분석하여 의미있는 인사이트를 제공합니다."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=MAX_TOKENS,
+                temperature=TEMPERATURE
+            )
+            
+            return response.choices[0].message.content.strip()
+        
+        except Exception as e:
+            print(f"AI 일정 요약 분석 오류: {e}")
+            return "❌ AI 분석 중 오류가 발생했습니다."
+    
+    def transcribe_voice(self, voice_file_path: str) -> str:
+        """음성을 텍스트로 변환 (OpenAI Whisper)"""
+        if not self.is_available():
+            return ""
+        
+        try:
+            with open(voice_file_path, "rb") as audio_file:
+                transcript = self.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
+                )
+                return transcript.text
+        except Exception as e:
+            print(f"음성 변환 오류: {e}")
+            return ""
+    
+    def analyze_voice_reflection(self, transcription: str) -> str:
+        """음성 회고 분석"""
+        if not self.is_available():
+            return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
+        
+        try:
+            prompt = f"""
+사용자의 음성 회고를 분석하여 다음과 같은 내용을 제공해주세요:
+
+1. **주요 내용 요약**: 음성에서 언급된 주요 사건이나 감정
+2. **감정 분석**: 사용자의 감정 상태와 톤 분석
+3. **인사이트**: 음성 내용에서 발견할 수 있는 패턴이나 의미
+4. **제안사항**: 개선점이나 다음 단계에 대한 제안
+
+음성 내용:
+{transcription}
+
+위 내용을 바탕으로 200-300자 내외의 분석 결과를 한국어로 제공해주세요.
+"""
+            
+            response = self.client.chat.completions.create(
+                model=GPT_MODEL,
+                messages=[
+                    {"role": "system", "content": "당신은 음성 회고 분석 전문가입니다. 사용자의 음성 내용을 분석하여 의미있는 인사이트를 제공합니다."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=MAX_TOKENS,
+                temperature=TEMPERATURE
+            )
+            
+            return response.choices[0].message.content.strip()
+        
+        except Exception as e:
+            print(f"음성 회고 분석 오류: {e}")
+            return "❌ 음성 분석 중 오류가 발생했습니다."
+    
+    def analyze_image_reflection(self, image_file_path: str) -> str:
+        """이미지 회고 분석 (OpenAI Vision)"""
+        if not self.is_available():
+            return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
+        
+        try:
+            import base64
+            
+            # 이미지 파일을 base64로 인코딩
+            with open(image_file_path, "rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+            
+            prompt = """
+이 이미지를 회고 관점에서 분석해주세요:
+
+1. **이미지 내용**: 이미지에 무엇이 보이는지
+2. **감정적 의미**: 이 이미지가 전달하는 감정이나 분위기
+3. **회고적 관점**: 이 이미지가 사용자의 하루나 삶에서 어떤 의미를 가지는지
+4. **인사이트**: 이미지를 통해 발견할 수 있는 패턴이나 깨달음
+
+회고적이고 성찰적인 관점에서 분석해주세요.
+"""
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=MAX_TOKENS,
+                temperature=TEMPERATURE
+            )
+            
+            return response.choices[0].message.content.strip()
+        
+        except Exception as e:
+            print(f"이미지 분석 오류: {e}")
+            return "❌ 이미지 분석 중 오류가 발생했습니다." 
