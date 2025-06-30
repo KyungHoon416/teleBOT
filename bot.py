@@ -62,7 +62,6 @@ class ScheduleBot:
 • 📊 통계 및 동기부여
 
 🚀 **시작하기:**
-/start - 봇 시작
 /help - 모든 명령어 보기
 /add_schedule - 첫 번째 일정 추가하기
 /daily_reflection - 오늘 회고 작성하기
@@ -98,10 +97,14 @@ class ScheduleBot:
 - `/feedback` : 회고에 대한 피드백을 받아보세요.
 - `/ai_feedback` : AI가 회고를 분석해줍니다.
 - `/routine_analysis` : AI가 내 루틴 패턴을 분석해줍니다.
+- `/ai_reflection - AI와 함께 묵상하기
+- `/chatgpt - ChatGPT와 자유로운 대화하기
 
 5️⃣ **기타**
 - `/motivate` : 랜덤 명언/동기부여 메시지 받기
 - `/help` : 이 도움말 다시 보기
+
+
 
 ---
 
@@ -633,6 +636,67 @@ class ScheduleBot:
             ai_msg = await self.ai_helper.get_motivational_message()
             await update.message.reply_text(f"🤖 AI 동기부여: {ai_msg}")
 
+    async def ai_reflection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        AI와 함께 묵상/고민/자기성찰 대화 (GPT-4o-mini)
+        """
+        await update.message.reply_text(
+            "🧘 <b>AI와 함께 묵상을 시작합니다!</b>\n\n자유롭게 오늘의 감정, 고민, 생각, 목표 등을 적어주세요.\nAI가 따뜻하게 코칭해드립니다.",
+            parse_mode='HTML'
+        )
+        return WAITING_AI_REFLECTION
+
+    async def ai_reflection_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_input = update.message.text
+        if self.ai_helper.is_available():
+            response = await self.ai_helper.get_ai_reflection_guidance(user_input)
+        else:
+            response = "AI 묵상 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(response, parse_mode='HTML')
+        return ConversationHandler.END
+
+    async def chatgpt(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        ChatGPT와 자유 대화 (질문/상담/잡담 등)
+        """
+        await update.message.reply_text(
+            "💬 <b>ChatGPT와 대화를 시작합니다!</b>\n\n궁금한 점, 고민, 잡담 등 무엇이든 입력해보세요.",
+            parse_mode='HTML'
+        )
+        return WAITING_CHATGPT
+
+    async def chatgpt_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_message = update.message.text
+        user_id = update.effective_user.id
+        # 대화 히스토리 관리 (옵션)
+        if user_id not in self.ai_conversations:
+            self.ai_conversations[user_id] = []
+        self.ai_conversations[user_id].append({"role": "user", "content": user_message})
+        if self.ai_helper.is_available():
+            response = await self.ai_helper.chat_with_gpt(user_message, self.ai_conversations[user_id])
+        else:
+            response = "AI 대화 기능이 비활성화되어 있습니다."
+        self.ai_conversations[user_id].append({"role": "assistant", "content": response})
+        await update.message.reply_text(response, parse_mode='HTML')
+        return ConversationHandler.END
+
+    async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        주간/월간 일정/회고 통계 제공
+        """
+        user_id = update.effective_user.id
+        # 일정 통계
+        schedule_week = self.db.get_schedule_stats(user_id, period='week') if hasattr(self.db, 'get_schedule_stats') else None
+        schedule_month = self.db.get_schedule_stats(user_id, period='month') if hasattr(self.db, 'get_schedule_stats') else None
+        # 회고 통계
+        reflection_week = self.db.get_reflection_stats(user_id, period='week')
+        reflection_month = self.db.get_reflection_stats(user_id, period='month')
+        msg = "<b>📊 주간/월간 일정·회고 통계</b>\n\n"
+        if schedule_week and schedule_month:
+            msg += f"<b>일정 작성률</b>\n- 이번 주: {schedule_week['written']}/{schedule_week['total']} ({schedule_week['rate']:.1f}%)\n- 이번 달: {schedule_month['written']}/{schedule_month['total']} ({schedule_month['rate']:.1f}%)\n\n"
+        msg += f"<b>회고 작성률</b>\n- 이번 주: {reflection_week['written']}/{reflection_week['total']} ({reflection_week['rate']:.1f}%)\n- 이번 달: {reflection_month['written']}/{reflection_month['total']} ({reflection_month['rate']:.1f}%)"
+        await update.message.reply_text(msg, parse_mode='HTML')
+
 def main():
     """메인 함수"""
     if not BOT_TOKEN:
@@ -729,6 +793,25 @@ def main():
     application.add_handler(CommandHandler("ai_pattern_analysis", bot.ai_pattern_analysis))
     application.add_handler(CommandHandler("ai_schedule_summary", bot.ai_schedule_summary))
     application.add_handler(CommandHandler("motivate", bot.motivate))
+    application.add_handler(CommandHandler('stats', bot.stats))
+    
+    # AI 묵상 핸들러 등록
+    ai_reflection_handler = ConversationHandler(
+        entry_points=[CommandHandler('ai_reflection', bot.ai_reflection)],
+        states={
+            WAITING_AI_REFLECTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.ai_reflection_input)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    chatgpt_handler = ConversationHandler(
+        entry_points=[CommandHandler('chatgpt', bot.chatgpt)],
+        states={
+            WAITING_CHATGPT: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.chatgpt_input)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    application.add_handler(ai_reflection_handler)
+    application.add_handler(chatgpt_handler)
     
     # 봇 시작
     print("🤖 텔레그램 봇이 시작되었습니다...")

@@ -49,7 +49,6 @@ class ScheduleBot:
 • 📊 통계 및 동기부여
 
 🚀 **시작하기:**
-/start - 봇 시작
 /help - 모든 명령어 보기
 /add_schedule - 첫 번째 일정 추가하기
 /daily_reflection - 오늘 회고 작성하기
@@ -233,6 +232,50 @@ class ScheduleBot:
         if self.ai_helper.is_available():
             ai_msg = await self.ai_helper.get_motivational_message()
             await update.message.reply_text(f"🤖 AI 동기부여: {ai_msg}")
+
+    async def ai_reflection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        AI와 함께 묵상/고민/자기성찰 대화 (GPT-4o-mini)
+        """
+        await update.message.reply_text(
+            "🧘 <b>AI와 함께 묵상을 시작합니다!</b>\n\n자유롭게 오늘의 감정, 고민, 생각, 목표 등을 적어주세요.\nAI가 따뜻하게 코칭해드립니다.",
+            parse_mode='HTML'
+        )
+        return WAITING_AI_REFLECTION
+
+    async def ai_reflection_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_input = update.message.text
+        if self.ai_helper.is_available():
+            response = await self.ai_helper.get_ai_reflection_guidance(user_input)
+        else:
+            response = "AI 묵상 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(response, parse_mode='HTML')
+        return ConversationHandler.END
+
+    async def chatgpt(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        ChatGPT와 자유 대화 (질문/상담/잡담 등)
+        """
+        await update.message.reply_text(
+            "💬 <b>ChatGPT와 대화를 시작합니다!</b>\n\n궁금한 점, 고민, 잡담 등 무엇이든 입력해보세요.",
+            parse_mode='HTML'
+        )
+        return WAITING_CHATGPT
+
+    async def chatgpt_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_message = update.message.text
+        user_id = update.effective_user.id
+        # 대화 히스토리 관리 (옵션)
+        if user_id not in self.ai_conversations:
+            self.ai_conversations[user_id] = []
+        self.ai_conversations[user_id].append({"role": "user", "content": user_message})
+        if self.ai_helper.is_available():
+            response = await self.ai_helper.chat_with_gpt(user_message, self.ai_conversations[user_id])
+        else:
+            response = "AI 대화 기능이 비활성화되어 있습니다."
+        self.ai_conversations[user_id].append({"role": "assistant", "content": response})
+        await update.message.reply_text(response, parse_mode='HTML')
+        return ConversationHandler.END
 
 def main():
     """메인 함수"""
