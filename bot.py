@@ -97,14 +97,15 @@ class ScheduleBot:
 - `/feedback` : 회고에 대한 피드백을 받아보세요.
 - `/ai_feedback` : AI가 회고를 분석해줍니다.
 - `/routine_analysis` : AI가 내 루틴 패턴을 분석해줍니다.
-- `/ai_reflection - AI와 함께 묵상하기
-- `/chatgpt - ChatGPT와 자유로운 대화하기
+- `/ai_reflection` : AI와 함께 묵상하기
+- `/chatgpt` : ChatGPT와 자유로운 대화하기
+- `/voice_reflection` : 음성 회고 (음성 메시지 → AI 분석)
+- `/image_reflection` : 이미지 회고 (이미지 → AI 분석)
+- `/view_reflections` : 전체 회고 목록 보기
 
 5️⃣ **기타**
 - `/motivate` : 랜덤 명언/동기부여 메시지 받기
 - `/help` : 이 도움말 다시 보기
-
-
 
 ---
 
