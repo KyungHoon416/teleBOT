@@ -124,6 +124,90 @@ class ScheduleBot:
         await update.message.reply_text("❌ 작업이 취소되었습니다.")
         return ConversationHandler.END
 
+    async def feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        최근 회고에 대한 F형(Feeling/Feedback/Forward) AI 피드백 제공
+        """
+        user_id = update.effective_user.id
+        reflections = self.db.get_reflections(user_id)
+        if not reflections:
+            await update.message.reply_text("최근 회고가 없습니다. 먼저 회고를 작성해 주세요.")
+            return
+        last_reflection = reflections[0]
+        content = last_reflection['content']
+        reflection_type = last_reflection.get('type', 'daily')
+        await update.message.reply_text(
+            "✨ T형 회고를 바탕으로 F형(Feeling/Feedback/Forward) 회고 피드백을 제공해드릴게요!\n\n잠시만 기다려주세요...",
+            parse_mode='HTML'
+        )
+        if self.ai_helper.is_available():
+            feedback_text = await self.ai_helper.get_reflection_feedback(content, reflection_type)
+        else:
+            feedback_text = "AI 피드백 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(feedback_text, parse_mode='HTML')
+
+    async def ai_feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        최근 회고에 대한 F형(Feeling/Feedback/Forward) AI 인사이트 제공
+        """
+        user_id = update.effective_user.id
+        reflections = self.db.get_reflections(user_id)
+        if not reflections:
+            await update.message.reply_text("최근 회고가 없습니다. 먼저 회고를 작성해 주세요.")
+            return
+        last_reflection = reflections[0]
+        content = last_reflection['content']
+        reflection_type = last_reflection.get('type', 'daily')
+        await update.message.reply_text(
+            "🤖 AI가 T형 회고를 F형(Feeling/Feedback/Forward) 구조로 분석해 인사이트를 제공해드릴게요!\n\n잠시만 기다려주세요...",
+            parse_mode='HTML'
+        )
+        if self.ai_helper.is_available():
+            feedback_text = await self.ai_helper.get_reflection_feedback(content, reflection_type)
+        else:
+            feedback_text = "AI 피드백 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(feedback_text, parse_mode='HTML')
+
+    async def ai_pattern_analysis(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        전체 회고 기록에 대한 AI 패턴 분석 결과를 제공합니다.
+        """
+        user_id = update.effective_user.id
+        reflections = self.db.get_reflections(user_id)
+        if not reflections:
+            await update.message.reply_text("분석할 회고가 없습니다. 먼저 회고를 작성해 주세요.")
+            return
+        if self.ai_helper.is_available():
+            analysis = await self.ai_helper.analyze_reflection_patterns(reflections)
+        else:
+            analysis = "AI 분석 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(f"📊 전체 회고 패턴 분석 결과:\n{analysis}")
+
+    async def ai_schedule_summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        전체 일정 데이터에 대한 AI 요약/분석 결과를 제공합니다.
+        """
+        user_id = update.effective_user.id
+        schedules = self.db.get_schedules(user_id)
+        if not schedules:
+            await update.message.reply_text("분석할 일정이 없습니다. 먼저 일정을 추가해 주세요.")
+            return
+        if self.ai_helper.is_available():
+            summary = await self.ai_helper.get_schedule_summary(schedules)
+        else:
+            summary = "AI 분석 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(f"📊 전체 일정 요약/분석 결과:\n{summary}")
+
+    async def motivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        랜덤 명언/동기부여 메시지 전송
+        """
+        quote = random.choice(MOTIVATIONAL_QUOTES)
+        await update.message.reply_text(f"💡 {quote}")
+        if self.ai_helper.is_available():
+            ai_msg = await self.ai_helper.get_motivational_message()
+            await update.message.reply_text(f"🤖 AI 동기부여: {ai_msg}")
+
 def main():
     """메인 함수"""
     if not BOT_TOKEN:
@@ -138,6 +222,11 @@ def main():
     # 핸들러 등록
     application.add_handler(CommandHandler("start", bot.start))
     application.add_handler(CommandHandler("help", bot.help_command))
+    application.add_handler(CommandHandler("feedback", bot.feedback))
+    application.add_handler(CommandHandler("ai_feedback", bot.ai_feedback))
+    application.add_handler(CommandHandler("ai_pattern_analysis", bot.ai_pattern_analysis))
+    application.add_handler(CommandHandler("ai_schedule_summary", bot.ai_schedule_summary))
+    application.add_handler(CommandHandler("motivate", bot.motivate))
     
     # 봇 시작
     print("🤖 텔레그램 봇이 시작되었습니다...")

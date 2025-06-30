@@ -3,6 +3,8 @@ import aiofiles
 from typing import Optional, Dict, List, Any
 from config import OPENAI_API_KEY, GPT_MODEL, MAX_TOKENS, TEMPERATURE
 from openai.types.chat import ChatCompletionMessageParam
+from telegram import Update
+from telegram.ext import ContextTypes
 
 class AIHelper:
     def __init__(self):
@@ -17,57 +19,47 @@ class AIHelper:
         """AI 기능 사용 가능 여부 확인"""
         return self.client is not None
     
-    async def get_reflection_feedback(self, reflection_content: str, reflection_type: str, user_context: str = "") -> str:
-        """회고에 대한 AI 피드백 생성"""
+    async def get_reflection_feedback(self, content: str, reflection_type: str = "daily") -> str:
+        """
+        T형 회고를 F형(Feeling/Feedback/Forward) 회고로 변환해주는 AI 피드백 생성
+        """
         if not self.is_available() or not self.client:
-            return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
-        
+            return "❌ AI 피드백 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         try:
-            # 회고 타입별 프롬프트 설정
-            type_context = {
-                'daily': '일일 회고',
-                'weekly': '주간 회고', 
-                'monthly': '월간 회고'
-            }.get(reflection_type, '회고')
-            
             prompt = f"""
-당신은 따뜻하고 지혜로운 멘토입니다. 사용자의 {type_context}를 읽고 다음과 같은 관점에서 피드백을 제공해주세요:
+아래는 사용자가 작성한 T형 회고입니다.
 
-1. **긍정적 인정**: 사용자의 성취, 노력, 성장을 인정하고 격려
-2. **통찰력 제공**: 회고 내용에서 발견할 수 있는 패턴이나 의미 분석
-3. **실용적 조언**: 구체적이고 실현 가능한 개선 방향 제시
-4. **감정적 지원**: 공감과 이해를 바탕으로 한 따뜻한 메시지
+{content}
 
-회고 내용:
-{reflection_content}
+이 회고를 바탕으로, F형 회고(Feeling/Feedback/Forward) 구조로 아래와 같이 안내해줘.
 
-사용자 컨텍스트: {user_context}
+1. [Feeling] 그 일에 대해 느낀 감정/마음/생각을 한 문장으로 요약해줘.
+2. [Feedback] 오늘의 회고에서 얻을 수 있는 인사이트나 배울 점을 짧게 정리해줘.
+3. [Forward] 실현 가능한 구체적 목표/실천 방안을 1~2가지 제안해줘.
+4. 마지막으로, 현실적으로 실천할 수 있도록 따뜻한 동기부여와 실천 팁을 한 문장으로 마무리해줘.
 
-위 내용을 바탕으로 200-300자 내외의 따뜻하고 구체적인 피드백을 한국어로 제공해주세요.
+아래 예시처럼 답변해줘:
+
+[Feeling] ...
+[Feedback] ...
+[Forward] ...
+[동기부여] ...
 """
-            
-            messages: List[ChatCompletionMessageParam] = [
-                {"role": "system", "content": "당신은 따뜻하고 지혜로운 멘토입니다. 사용자의 회고에 대해 공감적이고 실용적인 피드백을 제공합니다."},
+            messages = [
+                {"role": "system", "content": "당신은 따뜻하고 실용적인 자기성찰 코치입니다. 사용자의 회고를 F형 구조로 안내하고, 실현 가능한 목표와 동기부여를 제시합니다."},
                 {"role": "user", "content": prompt}
             ]
-            
             response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=messages,
-                max_tokens=MAX_TOKENS,
-                temperature=TEMPERATURE
+                max_tokens=400,
+                temperature=0.7
             )
-            
             content = response.choices[0].message.content
             return content.strip() if content else ""
-            
         except Exception as e:
-            print(f"AI 피드백 생성 중 오류: {e}")
-            # 더 친화적인 오류 메시지 제공
-            if "billing_not_active" in str(e):
-                return "💡 AI 피드백을 사용하려면 OpenAI 계정의 결제 정보를 설정해주세요.\n\n📝 대신 기본 피드백을 제공해드릴게요:\n\n🎉 봇 개발을 완성하셨군요! 정말 대단한 성취입니다. 커서를 통해 새로운 기술을 배우고 실제로 작동하는 봇을 만드신 것은 정말 멋진 일이에요. 앞으로도 이런 도전 정신을 유지하시면 더욱 큰 성장을 이루실 수 있을 거예요! 💪"
-            else:
-                return "💡 AI 피드백 생성 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 피드백을 제공해드릴게요:\n\n🎉 봇 개발을 완성하셨군요! 정말 대단한 성취입니다. 커서를 통해 새로운 기술을 배우고 실제로 작동하는 봇을 만드신 것은 정말 멋진 일이에요. 앞으로도 이런 도전 정신을 유지하시면 더욱 큰 성장을 이루실 수 있을 거예요! 💪"
+            print(f"AI 회고 피드백 생성 오류: {e}")
+            return "AI 회고 피드백 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
     
     async def get_ai_reflection_guidance(self, user_input: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> str:
         """AI와 함께하는 묵상 가이드"""
@@ -440,4 +432,22 @@ class AIHelper:
         
         except Exception as e:
             print(f"이미지 분석 오류: {e}")
-            return "❌ 이미지 분석 중 오류가 발생했습니다." 
+            return "❌ 이미지 분석 중 오류가 발생했습니다."
+    
+    async def feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """최근 회고에 대한 AI 피드백 제공"""
+        user_id = update.effective_user.id
+        # 최근 회고 가져오기
+        reflections = self.db.get_reflections(user_id)
+        if not reflections:
+            await update.message.reply_text("최근 회고가 없습니다. 먼저 회고를 작성해 주세요.")
+            return
+        last_reflection = reflections[0]
+        content = last_reflection['content']
+        reflection_type = last_reflection.get('type', 'daily')
+        # AI 피드백 생성
+        if self.ai_helper.is_available():
+            feedback_text = await self.ai_helper.get_reflection_feedback(content, reflection_type)
+        else:
+            feedback_text = "AI 피드백 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(f"📝 최근 회고:\n{content}\n\n💡 AI 피드백:\n{feedback_text}") 

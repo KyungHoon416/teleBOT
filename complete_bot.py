@@ -224,6 +224,16 @@ class ScheduleBot:
             await update.message.reply_text("❌ 이미지 처리 중 오류가 발생했습니다. 다시 시도해주세요.")
             return WAITING_IMAGE_REFLECTION
 
+    async def motivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        랜덤 명언/동기부여 메시지 전송
+        """
+        quote = random.choice(MOTIVATIONAL_QUOTES)
+        await update.message.reply_text(f"💡 {quote}")
+        if self.ai_helper.is_available():
+            ai_msg = await self.ai_helper.get_motivational_message()
+            await update.message.reply_text(f"🤖 AI 동기부여: {ai_msg}")
+
 def main():
     """메인 함수"""
     if not BOT_TOKEN:
@@ -240,6 +250,7 @@ def main():
     application.add_handler(CommandHandler("help", bot.help_command))
     application.add_handler(CommandHandler("voice_reflection", bot.voice_reflection))
     application.add_handler(CommandHandler("image_reflection", bot.image_reflection))
+    application.add_handler(CommandHandler("motivate", bot.motivate))
     
     # 음성 회고 핸들러
     voice_reflection_handler = ConversationHandler(

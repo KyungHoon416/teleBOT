@@ -123,15 +123,16 @@ class ScheduleBot:
         await update.message.reply_text(help_text)
     
     async def add_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        try:
-            if not update.message:
-                return ConversationHandler.END
-            await update.message.reply_text("📝 일정의 제목을 입력해주세요:")
-            return WAITING_SCHEDULE_TITLE
-        except Exception as e:
-            await update.message.reply_text(f"[오류] 일정 추가 중 에러 발생: {e}")
-            print(f"add_schedule error: {e}")
-            return ConversationHandler.END
+        """
+        일정 추가 대화 시작 - UX 개선 (HTML 안내, 예시, 입력 유도)
+        """
+        user_id = update.effective_user.id
+        self.user_states[user_id] = {'step': 1, 'data': {}}
+        await update.message.reply_text(
+            '🗓️ <b>일정 추가를 시작합니다!</b>\n\n날짜를 입력해주세요.\n예시: <code>2024-07-01</code>',
+            parse_mode='HTML'
+        )
+        return WAITING_SCHEDULE_DATE
     
     async def schedule_title(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
@@ -216,41 +217,28 @@ class ScheduleBot:
             return ConversationHandler.END
     
     async def view_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        try:
-            if not update.effective_user or not update.message:
-                return
-            user_id = update.effective_user.id
-            today = datetime.datetime.now().strftime('%Y-%m-%d')
-            today_schedules = self.db.get_schedules(user_id, today)
-            if not today_schedules:
-                await update.message.reply_text("📅 오늘 등록된 일정이 없습니다.")
-                return
-            for schedule in today_schedules:
-                time_str = f"⏰ {schedule['time']} " if schedule['time'] else ""
-                desc_str = f"\n  📄 {schedule['description']}" if schedule['description'] else ""
-                msg = f"• {time_str}{schedule['title']}{desc_str}"
-                await update.message.reply_text(msg)
-        except Exception as e:
-            await update.message.reply_text(f"[오류] 일정 조회 중 에러 발생: {e}")
-            print(f"view_schedule error: {e}")
+        """
+        일정 조회 UX 개선 (입력 유도)
+        """
+        user_id = update.effective_user.id
+        self.user_states[user_id] = {'view': True}
+        await update.message.reply_text(
+            '조회할 날짜를 입력해주세요. (예: 2024-06-01, "전체" 입력 시 모든 일정)',
+            parse_mode='HTML'
+        )
+        return WAITING_SCHEDULE_DATE
     
     async def daily_reflection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        try:
-            if not update.effective_user or not update.message:
-                return ConversationHandler.END
-            user_id = update.effective_user.id
-            today = datetime.datetime.now().strftime('%Y-%m-%d')
-            existing_reflections = self.db.get_reflections(user_id, 'daily', today)
-            if existing_reflections:
-                await update.message.reply_text("📖 오늘 이미 회고를 작성하셨습니다. 수정하시겠습니까?")
-                return ConversationHandler.END
-            context.user_data['reflection'] = {}
-            await update.message.reply_text("1️⃣ 오늘 있었던 일(사실)을 적어주세요!")
-            return WAITING_DAILY_FACT
-        except Exception as e:
-            await update.message.reply_text(f"[오류] 일일 회고 시작 중 에러 발생: {e}")
-            print(f"daily_reflection error: {e}")
-            return ConversationHandler.END
+        """
+        일일 회고 UX 개선 (입력 유도)
+        """
+        user_id = update.effective_user.id
+        self.user_states[user_id] = {'reflection': True}
+        await update.message.reply_text(
+            '오늘 하루를 돌아보며 회고를 작성해주세요.',
+            parse_mode='HTML'
+        )
+        return WAITING_DAILY_FACT
 
     async def daily_fact(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
@@ -313,17 +301,15 @@ class ScheduleBot:
 
     # 일정 수정 대화 흐름
     async def edit_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        일정 수정 UX 개선 (입력 유도)
+        """
         user_id = update.effective_user.id
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
-        schedules = self.db.get_schedules(user_id, today)
-        if not schedules:
-            await update.message.reply_text("오늘 수정할 일정이 없습니다.")
-            return ConversationHandler.END
-        msg = "수정할 일정을 선택하세요:\n"
-        for idx, s in enumerate(schedules, 1):
-            msg += f"{idx}. {s['title']} ({s['date']} {s['time'] or ''})\n"
-        context.user_data['edit_schedules'] = schedules
-        await update.message.reply_text(msg)
+        self.user_states[user_id] = {'step': 1, 'data': {}}
+        await update.message.reply_text(
+            '수정할 일정의 날짜를 입력해주세요. (예: 2024-06-01)',
+            parse_mode='HTML'
+        )
         return WAITING_EDIT_SELECT
 
     async def edit_select(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -378,17 +364,15 @@ class ScheduleBot:
 
     # 일정 삭제 대화 흐름
     async def delete_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        일정 삭제 UX 개선 (입력 유도)
+        """
         user_id = update.effective_user.id
-        today = datetime.datetime.now().strftime('%Y-%m-%d')
-        schedules = self.db.get_schedules(user_id, today)
-        if not schedules:
-            await update.message.reply_text("오늘 삭제할 일정이 없습니다.")
-            return ConversationHandler.END
-        msg = "삭제할 일정을 선택하세요:\n"
-        for idx, s in enumerate(schedules, 1):
-            msg += f"{idx}. {s['title']} ({s['date']} {s['time'] or ''})\n"
-        context.user_data['delete_schedules'] = schedules
-        await update.message.reply_text(msg)
+        self.user_states[user_id] = {'step': 1, 'data': {}}
+        await update.message.reply_text(
+            '삭제할 일정의 날짜를 입력해주세요. (예: 2024-06-01)',
+            parse_mode='HTML'
+        )
         return WAITING_DELETE_SELECT
 
     async def delete_select(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -565,6 +549,90 @@ class ScheduleBot:
             msg = "AI 분석 기능이 비활성화되어 있습니다."
         await update.message.reply_text(msg)
 
+    async def feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        최근 회고에 대한 F형(Feeling/Feedback/Forward) AI 피드백 제공
+        """
+        user_id = update.effective_user.id
+        reflections = self.db.get_reflections(user_id)
+        if not reflections:
+            await update.message.reply_text("최근 회고가 없습니다. 먼저 회고를 작성해 주세요.")
+            return
+        last_reflection = reflections[0]
+        content = last_reflection['content']
+        reflection_type = last_reflection.get('type', 'daily')
+        await update.message.reply_text(
+            "✨ T형 회고를 바탕으로 F형(Feeling/Feedback/Forward) 회고 피드백을 제공해드릴게요!\n\n잠시만 기다려주세요...",
+            parse_mode='HTML'
+        )
+        if self.ai_helper.is_available():
+            feedback_text = await self.ai_helper.get_reflection_feedback(content, reflection_type)
+        else:
+            feedback_text = "AI 피드백 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(feedback_text, parse_mode='HTML')
+
+    async def ai_feedback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        최근 회고에 대한 F형(Feeling/Feedback/Forward) AI 인사이트 제공
+        """
+        user_id = update.effective_user.id
+        reflections = self.db.get_reflections(user_id)
+        if not reflections:
+            await update.message.reply_text("최근 회고가 없습니다. 먼저 회고를 작성해 주세요.")
+            return
+        last_reflection = reflections[0]
+        content = last_reflection['content']
+        reflection_type = last_reflection.get('type', 'daily')
+        await update.message.reply_text(
+            "🤖 AI가 T형 회고를 F형(Feeling/Feedback/Forward) 구조로 분석해 인사이트를 제공해드릴게요!\n\n잠시만 기다려주세요...",
+            parse_mode='HTML'
+        )
+        if self.ai_helper.is_available():
+            feedback_text = await self.ai_helper.get_reflection_feedback(content, reflection_type)
+        else:
+            feedback_text = "AI 피드백 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(feedback_text, parse_mode='HTML')
+
+    async def ai_pattern_analysis(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        전체 회고 기록에 대한 AI 패턴 분석 결과를 제공합니다.
+        """
+        user_id = update.effective_user.id
+        reflections = self.db.get_reflections(user_id)
+        if not reflections:
+            await update.message.reply_text("분석할 회고가 없습니다. 먼저 회고를 작성해 주세요.")
+            return
+        if self.ai_helper.is_available():
+            analysis = await self.ai_helper.analyze_reflection_patterns(reflections)
+        else:
+            analysis = "AI 분석 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(f"📊 전체 회고 패턴 분석 결과:\n{analysis}")
+
+    async def ai_schedule_summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        전체 일정 데이터에 대한 AI 요약/분석 결과를 제공합니다.
+        """
+        user_id = update.effective_user.id
+        schedules = self.db.get_schedules(user_id)
+        if not schedules:
+            await update.message.reply_text("분석할 일정이 없습니다. 먼저 일정을 추가해 주세요.")
+            return
+        if self.ai_helper.is_available():
+            summary = await self.ai_helper.get_schedule_summary(schedules)
+        else:
+            summary = "AI 분석 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(f"📊 전체 일정 요약/분석 결과:\n{summary}")
+
+    async def motivate(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        랜덤 명언/동기부여 메시지 전송
+        """
+        quote = random.choice(MOTIVATIONAL_QUOTES)
+        await update.message.reply_text(f"💡 {quote}")
+        if self.ai_helper.is_available():
+            ai_msg = await self.ai_helper.get_motivational_message()
+            await update.message.reply_text(f"🤖 AI 동기부여: {ai_msg}")
+
 def main():
     """메인 함수"""
     if not BOT_TOKEN:
@@ -656,6 +724,11 @@ def main():
     application.add_handler(CommandHandler('view_routines', bot.view_routines))
     application.add_handler(CommandHandler('today_routines', bot.today_routines))
     application.add_handler(CommandHandler('routine_analysis', bot.routine_analysis))
+    application.add_handler(CommandHandler("feedback", bot.feedback))
+    application.add_handler(CommandHandler("ai_feedback", bot.ai_feedback))
+    application.add_handler(CommandHandler("ai_pattern_analysis", bot.ai_pattern_analysis))
+    application.add_handler(CommandHandler("ai_schedule_summary", bot.ai_schedule_summary))
+    application.add_handler(CommandHandler("motivate", bot.motivate))
     
     # 봇 시작
     print("🤖 텔레그램 봇이 시작되었습니다...")
