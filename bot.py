@@ -464,6 +464,108 @@ class ScheduleBot:
             await update.message.reply_text("숫자로 입력해주세요.")
             return WAITING_COMPLETE_SELECT
 
+    # 루틴 추가 대화 흐름
+    async def add_routine(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await update.message.reply_text("루틴 제목을 입력하세요:")
+        return WAITING_ROUTINE_TITLE
+
+    async def routine_title(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        context.user_data['routine'] = {'title': update.message.text.strip()}
+        await update.message.reply_text("루틴 설명을 입력하세요 (선택):")
+        return WAITING_ROUTINE_DESC
+
+    async def routine_desc(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        context.user_data['routine']['description'] = update.message.text.strip()
+        await update.message.reply_text("루틴 빈도를 입력하세요 (daily/weekly/monthly):")
+        return WAITING_ROUTINE_FREQ
+
+    async def routine_freq(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        freq = update.message.text.strip().lower()
+        if freq not in ['daily', 'weekly', 'monthly']:
+            await update.message.reply_text("daily/weekly/monthly 중 하나를 입력하세요.")
+            return WAITING_ROUTINE_FREQ
+        context.user_data['routine']['frequency'] = freq
+        if freq == 'weekly':
+            await update.message.reply_text("반복 요일을 입력하세요 (예: 1,3,5 / 월=1, 일=7):")
+            return WAITING_ROUTINE_DAYS
+        else:
+            context.user_data['routine']['days_of_week'] = None
+            await update.message.reply_text("루틴 시작일을 입력하세요 (YYYY-MM-DD):")
+            return WAITING_ROUTINE_DATE
+
+    async def routine_days(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        context.user_data['routine']['days_of_week'] = update.message.text.strip()
+        await update.message.reply_text("루틴 시작일을 입력하세요 (YYYY-MM-DD):")
+        return WAITING_ROUTINE_DATE
+
+    async def routine_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        context.user_data['routine']['start_date'] = update.message.text.strip()
+        await update.message.reply_text("루틴 종료일을 입력하세요 (YYYY-MM-DD, 선택):")
+        return WAITING_ROUTINE_TIME
+
+    async def routine_time(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        routine = context.user_data['routine']
+        routine['end_date'] = update.message.text.strip() if update.message.text.strip() else None
+        await update.message.reply_text("루틴 시간을 입력하세요 (HH:MM, 선택):")
+        return self._save_routine(update, context)
+
+    async def _save_routine(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        routine = context.user_data['routine']
+        user_id = update.effective_user.id
+        success = self.db.add_routine(
+            user_id=user_id,
+            title=routine['title'],
+            description=routine.get('description', ''),
+            frequency=routine['frequency'],
+            start_date=routine['start_date'],
+            end_date=routine.get('end_date'),
+            time=routine.get('time'),
+            days_of_week=routine.get('days_of_week')
+        )
+        if success:
+            await update.message.reply_text("✅ 루틴이 성공적으로 추가되었습니다!")
+        else:
+            await update.message.reply_text("❌ 루틴 추가 중 오류가 발생했습니다.")
+        context.user_data['routine'] = {}
+        return ConversationHandler.END
+
+    # 루틴 전체 목록
+    async def view_routines(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        routines = self.db.get_routines(user_id, active_only=False)
+        if not routines:
+            await update.message.reply_text("등록된 루틴이 없습니다.")
+            return
+        msg = "[전체 루틴 목록]\n"
+        for r in routines:
+            msg += f"- {r['title']} ({r['frequency']}, {r['start_date']}~{r.get('end_date','')})\n"
+        await update.message.reply_text(msg)
+
+    # 오늘의 루틴
+    async def today_routines(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        routines = self.db.get_today_routines(user_id)
+        if not routines:
+            await update.message.reply_text("오늘 해당되는 루틴이 없습니다.")
+            return
+        msg = "[오늘의 루틴]\n"
+        for r in routines:
+            msg += f"- {r['title']} ({r['frequency']}, {r['start_date']}~{r.get('end_date','')})\n"
+        await update.message.reply_text(msg)
+
+    # 루틴 분석 (AI)
+    async def routine_analysis(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        routines = self.db.get_routines(user_id, active_only=True)
+        if not routines:
+            await update.message.reply_text("분석할 루틴이 없습니다.")
+            return
+        if self.ai_helper.is_available():
+            msg = await self.ai_helper.analyze_reflection_patterns(routines)
+        else:
+            msg = "AI 분석 기능이 비활성화되어 있습니다."
+        await update.message.reply_text(msg)
+
 def main():
     """메인 함수"""
     if not BOT_TOKEN:
@@ -527,6 +629,20 @@ def main():
         fallbacks=[CommandHandler('cancel', bot.cancel)]
     )
     
+    # 루틴 추가 대화 핸들러
+    routine_handler = ConversationHandler(
+        entry_points=[CommandHandler('add_routine', bot.add_routine)],
+        states={
+            WAITING_ROUTINE_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.routine_title)],
+            WAITING_ROUTINE_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.routine_desc)],
+            WAITING_ROUTINE_FREQ: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.routine_freq)],
+            WAITING_ROUTINE_DAYS: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.routine_days)],
+            WAITING_ROUTINE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.routine_date)],
+            WAITING_ROUTINE_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.routine_time)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    
     # 핸들러 등록
     application.add_handler(CommandHandler("start", bot.start))
     application.add_handler(CommandHandler("help", bot.help_command))
@@ -537,6 +653,10 @@ def main():
     application.add_handler(edit_handler)
     application.add_handler(delete_handler)
     application.add_handler(complete_handler)
+    application.add_handler(routine_handler)
+    application.add_handler(CommandHandler('view_routines', bot.view_routines))
+    application.add_handler(CommandHandler('today_routines', bot.today_routines))
+    application.add_handler(CommandHandler('routine_analysis', bot.routine_analysis))
     
     # 봇 시작
     print("🤖 텔레그램 봇이 시작되었습니다...")
