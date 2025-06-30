@@ -1,13 +1,14 @@
 import openai
-from typing import Optional, Dict, List
+import aiofiles
+from typing import Optional, Dict, List, Any
 from config import OPENAI_API_KEY, GPT_MODEL, MAX_TOKENS, TEMPERATURE
+from openai.types.chat import ChatCompletionMessageParam
 
 class AIHelper:
     def __init__(self):
         """AI 헬퍼 초기화"""
         if OPENAI_API_KEY:
-            openai.api_key = OPENAI_API_KEY
-            self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
+            self.client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
         else:
             self.client = None
             print("⚠️ OpenAI API 키가 설정되지 않았습니다.")
@@ -16,9 +17,9 @@ class AIHelper:
         """AI 기능 사용 가능 여부 확인"""
         return self.client is not None
     
-    def get_reflection_feedback(self, reflection_content: str, reflection_type: str, user_context: str = "") -> str:
+    async def get_reflection_feedback(self, reflection_content: str, reflection_type: str, user_context: str = "") -> str:
         """회고에 대한 AI 피드백 생성"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         
         try:
@@ -45,17 +46,20 @@ class AIHelper:
 위 내용을 바탕으로 200-300자 내외의 따뜻하고 구체적인 피드백을 한국어로 제공해주세요.
 """
             
-            response = self.client.chat.completions.create(
+            messages: List[ChatCompletionMessageParam] = [
+                {"role": "system", "content": "당신은 따뜻하고 지혜로운 멘토입니다. 사용자의 회고에 대해 공감적이고 실용적인 피드백을 제공합니다."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
-                messages=[
-                    {"role": "system", "content": "당신은 따뜻하고 지혜로운 멘토입니다. 사용자의 회고에 대해 공감적이고 실용적인 피드백을 제공합니다."},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=MAX_TOKENS,
                 temperature=TEMPERATURE
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
             
         except Exception as e:
             print(f"AI 피드백 생성 중 오류: {e}")
@@ -65,14 +69,14 @@ class AIHelper:
             else:
                 return "💡 AI 피드백 생성 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 피드백을 제공해드릴게요:\n\n🎉 봇 개발을 완성하셨군요! 정말 대단한 성취입니다. 커서를 통해 새로운 기술을 배우고 실제로 작동하는 봇을 만드신 것은 정말 멋진 일이에요. 앞으로도 이런 도전 정신을 유지하시면 더욱 큰 성장을 이루실 수 있을 거예요! 💪"
     
-    def get_ai_reflection_guidance(self, user_input: str, conversation_history: List[Dict] = None) -> str:
+    async def get_ai_reflection_guidance(self, user_input: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> str:
         """AI와 함께하는 묵상 가이드"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         
         try:
             # 대화 히스토리 구성
-            messages = [
+            messages: List[ChatCompletionMessageParam] = [
                 {"role": "system", "content": """당신은 따뜻하고 지혜로운 묵상 동반자입니다. 
 사용자의 이야기를 경청하고, 깊이 있는 질문을 통해 자기 성찰을 돕습니다.
 항상 공감적이고 따뜻한 톤을 유지하며, 사용자가 자신의 생각과 감정을 더 깊이 탐색할 수 있도록 도와주세요.
@@ -82,19 +86,21 @@ class AIHelper:
             # 대화 히스토리 추가
             if conversation_history:
                 for msg in conversation_history[-6:]:  # 최근 6개 메시지만 사용
-                    messages.append(msg)
+                    if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                        messages.append({"role": msg["role"], "content": msg["content"]})
             
             # 현재 사용자 입력 추가
             messages.append({"role": "user", "content": user_input})
             
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=messages,
                 max_tokens=MAX_TOKENS,
                 temperature=TEMPERATURE
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
             
         except Exception as e:
             print(f"AI 묵상 가이드 생성 중 오류: {e}")
@@ -103,9 +109,9 @@ class AIHelper:
             else:
                 return "💡 AI 묵상 생성 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 묵상 가이드를 제공해드릴게요:\n\n당신의 이야기를 들려주셔서 감사합니다. 자기 성찰은 정말 중요한 시간이에요. 잠시 후 다시 시도해보시거나, 다른 방법으로 자기 성찰을 이어가보세요! 🙏"
     
-    def analyze_reflection_patterns(self, reflections: List[Dict]) -> str:
+    async def analyze_reflection_patterns(self, reflections: List[Dict]) -> str:
         """회고 패턴 분석 및 인사이트 제공"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         
         if not reflections:
@@ -133,17 +139,20 @@ class AIHelper:
 위 내용을 바탕으로 300-400자 내외의 분석 결과를 한국어로 제공해주세요.
 """
             
-            response = self.client.chat.completions.create(
+            messages: List[ChatCompletionMessageParam] = [
+                {"role": "system", "content": "당신은 회고 분석 전문가입니다. 사용자의 회고 패턴을 분석하여 의미있는 인사이트를 제공합니다."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
-                messages=[
-                    {"role": "system", "content": "당신은 회고 분석 전문가입니다. 사용자의 회고 패턴을 분석하여 의미있는 인사이트를 제공합니다."},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=MAX_TOKENS,
                 temperature=TEMPERATURE
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
             
         except Exception as e:
             print(f"회고 패턴 분석 중 오류: {e}")
@@ -152,9 +161,9 @@ class AIHelper:
             else:
                 return "💡 회고 패턴 분석 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 분석을 제공해드릴게요:\n\n회고를 꾸준히 작성하고 계시는 모습이 정말 인상적입니다! 잠시 후 다시 시도해보시거나, 지금도 충분히 의미있는 회고를 작성하고 계세요! 📊"
     
-    def get_motivational_message(self, user_context: str = "") -> str:
+    async def get_motivational_message(self, user_context: str = "") -> str:
         """동기부여 메시지 생성"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         
         try:
@@ -172,17 +181,20 @@ class AIHelper:
 100-150자 내외의 짧고 임팩트 있는 메시지로 작성해주세요.
 """
             
-            response = self.client.chat.completions.create(
+            messages: List[ChatCompletionMessageParam] = [
+                {"role": "system", "content": "당신은 따뜻하고 격려적인 동기부여 전문가입니다."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
-                messages=[
-                    {"role": "system", "content": "당신은 따뜻하고 격려적인 동기부여 전문가입니다."},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=300,
                 temperature=0.8
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
             
         except Exception as e:
             print(f"동기부여 메시지 생성 중 오류: {e}")
@@ -191,14 +203,14 @@ class AIHelper:
             else:
                 return "💡 AI 동기부여 메시지 생성 중 일시적인 오류가 발생했습니다.\n\n📝 대신 기본 메시지를 제공해드릴게요:\n\n당신은 정말 대단한 사람입니다! 매일 조금씩이라도 성장하려는 모습이 정말 멋져요. 오늘도 힘내세요! 💪✨"
     
-    def chat_with_gpt(self, user_message: str, conversation_history: List[Dict] = None) -> str:
+    async def chat_with_gpt(self, user_message: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> str:
         """ChatGPT와 일반 대화"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         
         try:
             # 대화 히스토리 구성
-            messages = [
+            messages: List[ChatCompletionMessageParam] = [
                 {"role": "system", "content": """당신은 친근하고 도움이 되는 AI 어시스턴트입니다.
 사용자의 질문이나 대화에 대해 정확하고 유용한 답변을 제공합니다.
 한국어로 대화하며, 필요시 영어로도 답변할 수 있습니다.
@@ -208,19 +220,21 @@ class AIHelper:
             # 대화 히스토리 추가 (최근 10개 메시지만 사용)
             if conversation_history:
                 for msg in conversation_history[-10:]:
-                    messages.append(msg)
+                    if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                        messages.append({"role": msg["role"], "content": msg["content"]})
             
             # 현재 사용자 메시지 추가
             messages.append({"role": "user", "content": user_message})
             
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=messages,
                 max_tokens=MAX_TOKENS,
                 temperature=TEMPERATURE
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
             
         except Exception as e:
             print(f"ChatGPT 대화 중 오류: {e}")
@@ -229,9 +243,9 @@ class AIHelper:
             else:
                 return "💡 ChatGPT 대화 중 일시적인 오류가 발생했습니다.\n\n📝 잠시 후 다시 시도해보시거나, 다른 기능을 이용해보세요! 🤖"
     
-    def get_completion_motivation(self, schedule_title: str) -> str:
+    async def get_completion_motivation(self, schedule_title: str) -> str:
         """일정 완료 시 AI 동기부여 메시지 생성"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return ""
         
         try:
@@ -248,25 +262,28 @@ class AIHelper:
 를 포함해야 합니다.
 """
             
-            response = self.client.chat.completions.create(
+            messages: List[ChatCompletionMessageParam] = [
+                {"role": "system", "content": "당신은 따뜻하고 격려적인 멘토입니다. 사용자의 성취를 축하하고 동기부여를 제공합니다."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
-                messages=[
-                    {"role": "system", "content": "당신은 따뜻하고 격려적인 멘토입니다. 사용자의 성취를 축하하고 동기부여를 제공합니다."},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=100,
                 temperature=0.8
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
         
         except Exception as e:
             print(f"AI 완료 동기부여 생성 오류: {e}")
             return ""
     
-    def get_schedule_summary(self, schedules: List[Dict]) -> str:
+    async def get_schedule_summary(self, schedules: List[Dict]) -> str:
         """일정 데이터 기반 AI 요약/분석"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         
         if not schedules:
@@ -295,41 +312,50 @@ class AIHelper:
 위 내용을 바탕으로 300-400자 내외의 분석 결과를 한국어로 제공해주세요.
 """
             
-            response = self.client.chat.completions.create(
+            messages: List[ChatCompletionMessageParam] = [
+                {"role": "system", "content": "당신은 일정 관리 전문가입니다. 사용자의 일정 패턴을 분석하여 의미있는 인사이트를 제공합니다."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
-                messages=[
-                    {"role": "system", "content": "당신은 일정 관리 전문가입니다. 사용자의 일정 패턴을 분석하여 의미있는 인사이트를 제공합니다."},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=MAX_TOKENS,
                 temperature=TEMPERATURE
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
         
         except Exception as e:
             print(f"AI 일정 요약 분석 오류: {e}")
             return "❌ AI 분석 중 오류가 발생했습니다."
     
-    def transcribe_voice(self, voice_file_path: str) -> str:
+    async def transcribe_voice(self, voice_file_path: str) -> str:
         """음성을 텍스트로 변환 (OpenAI Whisper)"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return ""
         
         try:
-            with open(voice_file_path, "rb") as audio_file:
-                transcript = self.client.audio.transcriptions.create(
+            async with aiofiles.open(voice_file_path, "rb") as audio_file:
+                audio_bytes = await audio_file.read()
+            import io
+            audio_stream = io.BytesIO(audio_bytes)
+            if hasattr(self.client, "audio") and hasattr(self.client.audio, "transcriptions"):
+                transcript = await self.client.audio.transcriptions.create(
                     model="whisper-1",
-                    file=audio_file
+                    file=audio_stream
                 )
-                return transcript.text
+                return transcript.text if transcript and hasattr(transcript, 'text') else ""
+            else:
+                return ""
         except Exception as e:
             print(f"음성 변환 오류: {e}")
             return ""
     
-    def analyze_voice_reflection(self, transcription: str) -> str:
+    async def analyze_voice_reflection(self, transcription: str) -> str:
         """음성 회고 분석"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         
         try:
@@ -347,33 +373,37 @@ class AIHelper:
 위 내용을 바탕으로 200-300자 내외의 분석 결과를 한국어로 제공해주세요.
 """
             
-            response = self.client.chat.completions.create(
+            messages: List[ChatCompletionMessageParam] = [
+                {"role": "system", "content": "당신은 음성 회고 분석 전문가입니다. 사용자의 음성 내용을 분석하여 의미있는 인사이트를 제공합니다."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = await self.client.chat.completions.create(
                 model=GPT_MODEL,
-                messages=[
-                    {"role": "system", "content": "당신은 음성 회고 분석 전문가입니다. 사용자의 음성 내용을 분석하여 의미있는 인사이트를 제공합니다."},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 max_tokens=MAX_TOKENS,
                 temperature=TEMPERATURE
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
         
         except Exception as e:
             print(f"음성 회고 분석 오류: {e}")
             return "❌ 음성 분석 중 오류가 발생했습니다."
     
-    def analyze_image_reflection(self, image_file_path: str) -> str:
+    async def analyze_image_reflection(self, image_file_path: str) -> str:
         """이미지 회고 분석 (OpenAI Vision)"""
-        if not self.is_available():
+        if not self.is_available() or not self.client:
             return "❌ AI 기능을 사용할 수 없습니다. OpenAI API 키를 설정해주세요."
         
         try:
             import base64
             
             # 이미지 파일을 base64로 인코딩
-            with open(image_file_path, "rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+            async with aiofiles.open(image_file_path, "rb") as image_file:
+                image_bytes = await image_file.read()
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
             
             prompt = """
 이 이미지를 회고 관점에서 분석해주세요:
@@ -386,7 +416,7 @@ class AIHelper:
 회고적이고 성찰적인 관점에서 분석해주세요.
 """
             
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
                     {
