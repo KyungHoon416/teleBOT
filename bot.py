@@ -28,6 +28,9 @@ WAITING_AI_REFLECTION = range(20, 21)
 WAITING_CHATGPT = range(21, 22)
 WAITING_ROUTINE_TITLE, WAITING_ROUTINE_DESC, WAITING_ROUTINE_FREQ, WAITING_ROUTINE_DAYS, WAITING_ROUTINE_DATE, WAITING_ROUTINE_TIME = range(22, 28)
 WAITING_VOICE_REFLECTION, WAITING_IMAGE_REFLECTION = range(28, 30)
+WAITING_EDIT_SELECT, WAITING_EDIT_FIELD, WAITING_EDIT_VALUE = range(30, 33)
+WAITING_DELETE_SELECT, WAITING_DELETE_CONFIRM = range(33, 35)
+WAITING_COMPLETE_SELECT = 35
 
 class ScheduleBot:
     def __init__(self):
@@ -309,6 +312,158 @@ class ScheduleBot:
             print(f"cancel error: {e}")
             return ConversationHandler.END
 
+    # 일정 수정 대화 흐름
+    async def edit_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        schedules = self.db.get_schedules(user_id, today)
+        if not schedules:
+            await update.message.reply_text("오늘 수정할 일정이 없습니다.")
+            return ConversationHandler.END
+        msg = "수정할 일정을 선택하세요:\n"
+        for idx, s in enumerate(schedules, 1):
+            msg += f"{idx}. {s['title']} ({s['date']} {s['time'] or ''})\n"
+        context.user_data['edit_schedules'] = schedules
+        await update.message.reply_text(msg)
+        return WAITING_EDIT_SELECT
+
+    async def edit_select(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            idx = int(update.message.text.strip()) - 1
+            schedules = context.user_data['edit_schedules']
+            if idx < 0 or idx >= len(schedules):
+                await update.message.reply_text("잘못된 번호입니다. 다시 입력하세요.")
+                return WAITING_EDIT_SELECT
+            context.user_data['edit_selected'] = schedules[idx]
+            await update.message.reply_text("수정할 항목을 선택하세요 (title/description/date/time):")
+            return WAITING_EDIT_FIELD
+        except Exception:
+            await update.message.reply_text("숫자로 입력해주세요.")
+            return WAITING_EDIT_SELECT
+
+    async def edit_field(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        field = update.message.text.strip().lower()
+        if field not in ['title', 'description', 'date', 'time']:
+            await update.message.reply_text("title/description/date/time 중 하나를 입력하세요.")
+            return WAITING_EDIT_FIELD
+        context.user_data['edit_field'] = field
+        await update.message.reply_text(f"새로운 {field} 값을 입력하세요:")
+        return WAITING_EDIT_VALUE
+
+    async def edit_value(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        value = update.message.text.strip()
+        selected = context.user_data['edit_selected']
+        field = context.user_data['edit_field']
+        new_title = selected['title']
+        new_desc = selected['description']
+        new_date = selected['date']
+        new_time = selected['time']
+        if field == 'title':
+            new_title = value
+        elif field == 'description':
+            new_desc = value
+        elif field == 'date':
+            new_date = value
+        elif field == 'time':
+            new_time = value
+        success = self.db.update_schedule(selected['id'], selected['user_id'], new_title, new_desc, new_date, new_time)
+        if success:
+            await update.message.reply_text("✅ 일정이 성공적으로 수정되었습니다!")
+            await update.message.reply_text(f"🔔 '{new_title}' 일정이 수정되었습니다.")
+        else:
+            await update.message.reply_text("❌ 일정 수정 중 오류가 발생했습니다.")
+        context.user_data.pop('edit_schedules', None)
+        context.user_data.pop('edit_selected', None)
+        context.user_data.pop('edit_field', None)
+        return ConversationHandler.END
+
+    # 일정 삭제 대화 흐름
+    async def delete_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        schedules = self.db.get_schedules(user_id, today)
+        if not schedules:
+            await update.message.reply_text("오늘 삭제할 일정이 없습니다.")
+            return ConversationHandler.END
+        msg = "삭제할 일정을 선택하세요:\n"
+        for idx, s in enumerate(schedules, 1):
+            msg += f"{idx}. {s['title']} ({s['date']} {s['time'] or ''})\n"
+        context.user_data['delete_schedules'] = schedules
+        await update.message.reply_text(msg)
+        return WAITING_DELETE_SELECT
+
+    async def delete_select(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            idx = int(update.message.text.strip()) - 1
+            schedules = context.user_data['delete_schedules']
+            if idx < 0 or idx >= len(schedules):
+                await update.message.reply_text("잘못된 번호입니다. 다시 입력하세요.")
+                return WAITING_DELETE_SELECT
+            context.user_data['delete_selected'] = schedules[idx]
+            await update.message.reply_text(f"정말로 삭제하시겠습니까? (yes/no)\n{schedules[idx]['title']} ({schedules[idx]['date']} {schedules[idx]['time'] or ''})")
+            return WAITING_DELETE_CONFIRM
+        except Exception:
+            await update.message.reply_text("숫자로 입력해주세요.")
+            return WAITING_DELETE_SELECT
+
+    async def delete_confirm(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        answer = update.message.text.strip().lower()
+        selected = context.user_data['delete_selected']
+        if answer == 'yes':
+            success = self.db.delete_schedule(selected['id'], selected['user_id'])
+            if success:
+                await update.message.reply_text("✅ 일정이 성공적으로 삭제되었습니다!")
+                await update.message.reply_text(f"🔔 '{selected['title']}' 일정이 삭제되었습니다.")
+            else:
+                await update.message.reply_text("❌ 일정 삭제 중 오류가 발생했습니다.")
+        else:
+            await update.message.reply_text("삭제가 취소되었습니다.")
+        context.user_data.pop('delete_schedules', None)
+        context.user_data.pop('delete_selected', None)
+        return ConversationHandler.END
+
+    # 일정 완료 대화 흐름
+    async def complete_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        schedules = self.db.get_schedules(user_id, today)
+        incomplete = [s for s in schedules if not s.get('is_done')]
+        if not incomplete:
+            await update.message.reply_text("오늘 완료할 일정이 없습니다.")
+            return ConversationHandler.END
+        msg = "완료할 일정을 선택하세요:\n"
+        for idx, s in enumerate(incomplete, 1):
+            msg += f"{idx}. {s['title']} ({s['date']} {s['time'] or ''})\n"
+        context.user_data['complete_schedules'] = incomplete
+        await update.message.reply_text(msg)
+        return WAITING_COMPLETE_SELECT
+
+    async def complete_select(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        try:
+            idx = int(update.message.text.strip()) - 1
+            schedules = context.user_data['complete_schedules']
+            if idx < 0 or idx >= len(schedules):
+                await update.message.reply_text("잘못된 번호입니다. 다시 입력하세요.")
+                return WAITING_COMPLETE_SELECT
+            selected = schedules[idx]
+            success = self.db.update_schedule_done(selected['id'], selected['user_id'])
+            if success:
+                # AI 응원 메시지
+                if self.ai_helper.is_available():
+                    msg = await self.ai_helper.get_completion_motivation(selected['title'])
+                else:
+                    msg = f"🎉 '{selected['title']}' 일정 완료! 정말 수고하셨어요! 💪"
+                await update.message.reply_text(msg)
+                # 알림 메시지
+                await update.message.reply_text(f"🔔 '{selected['title']}' 일정이 완료 처리되었습니다.")
+            else:
+                await update.message.reply_text("❌ 일정 완료 처리 중 오류가 발생했습니다.")
+            context.user_data.pop('complete_schedules', None)
+            return ConversationHandler.END
+        except Exception:
+            await update.message.reply_text("숫자로 입력해주세요.")
+            return WAITING_COMPLETE_SELECT
+
 def main():
     """메인 함수"""
     if not BOT_TOKEN:
@@ -343,12 +498,45 @@ def main():
         fallbacks=[CommandHandler('cancel', bot.cancel)]
     )
     
+    # 일정 수정 대화 핸들러
+    edit_handler = ConversationHandler(
+        entry_points=[CommandHandler('edit_schedule', bot.edit_schedule)],
+        states={
+            WAITING_EDIT_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.edit_select)],
+            WAITING_EDIT_FIELD: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.edit_field)],
+            WAITING_EDIT_VALUE: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.edit_value)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    # 일정 삭제 대화 핸들러
+    delete_handler = ConversationHandler(
+        entry_points=[CommandHandler('delete_schedule', bot.delete_schedule)],
+        states={
+            WAITING_DELETE_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.delete_select)],
+            WAITING_DELETE_CONFIRM: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.delete_confirm)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    
+    # 일정 완료 대화 핸들러
+    complete_handler = ConversationHandler(
+        entry_points=[CommandHandler('complete_schedule', bot.complete_schedule)],
+        states={
+            WAITING_COMPLETE_SELECT: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.complete_select)],
+        },
+        fallbacks=[CommandHandler('cancel', bot.cancel)]
+    )
+    
     # 핸들러 등록
     application.add_handler(CommandHandler("start", bot.start))
     application.add_handler(CommandHandler("help", bot.help_command))
     application.add_handler(schedule_handler)
     application.add_handler(reflection_handler)
     application.add_handler(CommandHandler("view_schedule", bot.view_schedule))
+    # 일정 수정/삭제 명령어 핸들러 등록
+    application.add_handler(edit_handler)
+    application.add_handler(delete_handler)
+    application.add_handler(complete_handler)
     
     # 봇 시작
     print("🤖 텔레그램 봇이 시작되었습니다...")
