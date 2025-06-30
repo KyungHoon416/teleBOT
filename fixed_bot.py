@@ -62,54 +62,74 @@ class ScheduleBot:
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
-        /help 명령어 안내문을 최신 bot.py와 동일하게, 초보자도 쉽게 쓸 수 있도록 상세하게 리뉴얼합니다.
+        /help 명령어 안내문을 더 읽기 쉽고, 시각적으로 구분이 잘 되며, 초보자도 직관적으로 사용할 수 있도록 UX/UI를 개선합니다.
         """
         help_text = """
-📋 **텔레그램 일정/회고/루틴/AI 통합 봇 사용법**
+━━━━━━━━━━━━━━━━━━━━━━
+🤖 <b>텔레그램 일정/회고/루틴/AI 통합봇 사용 가이드</b>
+━━━━━━━━━━━━━━━━━━━━━━
 
-1️⃣ **봇 시작하기**
-- `/start` : 봇을 시작하고 환영 메시지를 받아보세요.
+<b>1️⃣ 봇 시작하기</b>
+• <code>/start</code> : 봇을 시작하고 환영 메시지를 받아보세요.
+• <code>/help</code> : 언제든 도움말을 다시 볼 수 있습니다.
 
-2️⃣ **일정 관리**
-- `/add_schedule` : 새로운 일정을 추가합니다. (대화형 입력)
-- `/view_schedule` : 오늘의 일정을 확인합니다.
-- `/edit_schedule` : 일정을 수정합니다. (목록에서 선택)
-- `/delete_schedule` : 일정을 삭제합니다. (목록에서 선택)
-- `/complete_schedule` : 일정을 완료 처리하고 응원 메시지를 받아보세요.
+<b>2️⃣ 일정 관리</b>
+• <code>/add_schedule</code> : 새 일정 추가 (대화형 입력)
+• <code>/view_schedule</code> : 오늘의 일정 확인
+• <code>/edit_schedule</code> : 일정 수정 (목록에서 선택)
+• <code>/delete_schedule</code> : 일정 삭제 (목록에서 선택)
+• <code>/complete_schedule</code> : 일정 완료 체크 & 응원 메시지
 
-3️⃣ **루틴 관리**
-- `/add_routine` : 반복되는 루틴을 등록합니다. (예: 매주 운동)
-- `/view_routines` : 내 모든 루틴을 확인합니다.
-- `/today_routines` : 오늘 해야 할 루틴만 보여줍니다.
+<b>3️⃣ 루틴 관리</b>
+• <code>/add_routine</code> : 반복 루틴 등록 (예: 매주 운동)
+• <code>/view_routines</code> : 내 모든 루틴 보기
+• <code>/today_routines</code> : 오늘 해야 할 루틴만 보기
 
-4️⃣ **회고/피드백/AI**
-- `/daily_reflection` : 오늘 하루 회고를 작성합니다.
-- `/feedback` : 회고에 대한 피드백을 받아보세요.
-- `/ai_feedback` : AI가 회고를 분석해줍니다.
-- `/routine_analysis` : AI가 내 루틴 패턴을 분석해줍니다.
+<b>4️⃣ 회고/피드백/AI</b>
+• <code>/daily_reflection</code> : 오늘 하루 회고 작성
+• <code>/feedback</code> : 회고에 대한 피드백 받기
+• <code>/ai_feedback</code> : AI가 회고를 분석해줍니다
+• <code>/routine_analysis</code> : AI가 내 루틴 패턴을 분석해줍니다
 
-5️⃣ **기타**
-- `/motivate` : 랜덤 명언/동기부여 메시지 받기
-- `/help` : 이 도움말 다시 보기
+<b>5️⃣ 기타/동기부여</b>
+• <code>/motivate</code> : 랜덤 명언/동기부여 메시지
 
----
+━━━━━━━━━━━━━━━━━━━━━━
+<b>💡 사용 꿀팁</b>
+━━━━━━━━━━━━━━━━━━━━━━
+• 각 명령어 입력 시 챗봇이 단계별로 친절하게 안내합니다.
+• 날짜는 <b>YYYY-MM-DD</b>, 시간은 <b>HH:MM</b> 형식으로 입력하세요.
+• <b>모든 주요 기능은 대화형(단계별) 안내로 초보자도 쉽게 사용 가능!</b>
+• 잘 모르겠으면 언제든 <code>/help</code>를 입력하세요.
 
-💡 **사용 팁**
-- 각 명령어를 입력하면, 챗봇이 단계별로 안내해줍니다.
-- 날짜는 `YYYY-MM-DD`, 시간은 `HH:MM` 형식으로 입력하세요.
-- 잘 모르겠으면 언제든 `/help`를 입력하세요!
+━━━━━━━━━━━━━━━━━━━━━━
+<b>🔎 실전 예시</b>
+━━━━━━━━━━━━━━━━━━━━━━
+<code>/add_schedule</code> 입력 → 챗봇이 "제목을 입력하세요" 등 단계별 안내
+<code>/add_routine</code> 입력 → "루틴 제목/빈도/요일/시작일..." 순서로 안내
 
----
+━━━━━━━━━━━━━━━━━━━━━━
+<b>❓ 자주 묻는 질문</b>
+━━━━━━━━━━━━━━━━━━━━━━
+• <b>Q.</b> 명령어가 기억이 안 나요!
+  <b>A.</b> <code>/help</code> 또는 <code>/start</code>를 입력하세요.
+• <b>Q.</b> 입력 실수/오류가 났어요!
+  <b>A.</b> 언제든 <code>/cancel</code>로 대화 취소 후 다시 시작하세요.
+• <b>Q.</b> 일정/루틴/회고가 저장이 안 돼요!
+  <b>A.</b> 입력값(날짜/시간/형식 등)을 다시 확인해 주세요.
 
-**예시**
-- "/add_schedule" 입력 → 챗봇이 "제목을 입력하세요" 등 단계별로 안내
-- "/add_routine" 입력 → 챗봇이 "루틴 제목/빈도/요일/시작일..." 순서로 안내
+━━━━━━━━━━━━━━━━━━━━━━
+<b>🚨 주의사항</b>
+━━━━━━━━━━━━━━━━━━━━━━
+• <b>개인정보/민감정보는 입력하지 마세요.</b>
+• <b>모든 데이터는 사용자별로 안전하게 분리 저장됩니다.</b>
+• <b>AI 기능은 OpenAI API를 사용합니다.</b>
 
----
-
-❓ **문제가 있거나 궁금한 점이 있으면 언제든 '/help' 또는 '/start'로 다시 시작하세요!**
+━━━━━━━━━━━━━━━━━━━━━━
+<b>🙋‍♂️ 무엇을 도와드릴까요?</b>
+━━━━━━━━━━━━━━━━━━━━━━
 """
-        await update.message.reply_text(help_text)
+        await update.message.reply_text(help_text, parse_mode="HTML")
     
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """대화 취소"""
