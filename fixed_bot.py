@@ -61,51 +61,54 @@ class ScheduleBot:
         await update.message.reply_text(welcome_message)
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """도움말 명령어"""
-        help_text = """
-📋 **사용 가능한 명령어**
-
-📅 **일정 관리**
-/add_schedule - 새로운 일정 추가
-/view_schedule - 일정 목록 보기
-/edit_schedule - 일정 수정하기
-/delete_schedule - 일정 삭제하기
-
-🔄 **루틴 관리**
-/add_routine - 새로운 루틴 추가
-/view_routines - 루틴 목록 보기
-/today_routines - 오늘의 루틴 보기
-
-🔔 **알림 기능**
-• 일정 추가/수정/삭제 시 자동 알림
-• 매일 아침 8시 일정 알림
-• 일정 완료 시 응원 메시지
-
-📖 **회고 작성**
-/daily_reflection - 오늘 하루 회고 (T형)
-/weekly_reflection - 이번 주 회고 (T형)
-/monthly_reflection - 이번 달 회고 (T형)
-/voice_reflection - 음성 회고 (AI 음성 분석)
-/image_reflection - 이미지 회고 (AI 이미지 분석)
-/view_reflections - 작성한 회고 보기
-
-💡 **피드백 & 분석**
-/feedback - 회고에 대한 피드백 받기
-/ai_feedback - AI 피드백 받기
-/ai_pattern_analysis - AI 회고 패턴 분석
-/ai_schedule_summary - AI 일정 요약/분석
-
-🤖 **AI 기능**
-/ai_reflection - AI와 함께 묵상하기
-/chatgpt - ChatGPT와 자유로운 대화하기
-
-📊 **통계 & 동기부여**
-/stats - 주간/월간 일정/회고 통계
-/motivate - 명언/동기부여 랜덤 전송
-
-❓ **기타**
-/help - 이 도움말 보기
         """
+        /help 명령어 안내문을 최신 bot.py와 동일하게, 초보자도 쉽게 쓸 수 있도록 상세하게 리뉴얼합니다.
+        """
+        help_text = """
+📋 **텔레그램 일정/회고/루틴/AI 통합 봇 사용법**
+
+1️⃣ **봇 시작하기**
+- `/start` : 봇을 시작하고 환영 메시지를 받아보세요.
+
+2️⃣ **일정 관리**
+- `/add_schedule` : 새로운 일정을 추가합니다. (대화형 입력)
+- `/view_schedule` : 오늘의 일정을 확인합니다.
+- `/edit_schedule` : 일정을 수정합니다. (목록에서 선택)
+- `/delete_schedule` : 일정을 삭제합니다. (목록에서 선택)
+- `/complete_schedule` : 일정을 완료 처리하고 응원 메시지를 받아보세요.
+
+3️⃣ **루틴 관리**
+- `/add_routine` : 반복되는 루틴을 등록합니다. (예: 매주 운동)
+- `/view_routines` : 내 모든 루틴을 확인합니다.
+- `/today_routines` : 오늘 해야 할 루틴만 보여줍니다.
+
+4️⃣ **회고/피드백/AI**
+- `/daily_reflection` : 오늘 하루 회고를 작성합니다.
+- `/feedback` : 회고에 대한 피드백을 받아보세요.
+- `/ai_feedback` : AI가 회고를 분석해줍니다.
+- `/routine_analysis` : AI가 내 루틴 패턴을 분석해줍니다.
+
+5️⃣ **기타**
+- `/motivate` : 랜덤 명언/동기부여 메시지 받기
+- `/help` : 이 도움말 다시 보기
+
+---
+
+💡 **사용 팁**
+- 각 명령어를 입력하면, 챗봇이 단계별로 안내해줍니다.
+- 날짜는 `YYYY-MM-DD`, 시간은 `HH:MM` 형식으로 입력하세요.
+- 잘 모르겠으면 언제든 `/help`를 입력하세요!
+
+---
+
+**예시**
+- "/add_schedule" 입력 → 챗봇이 "제목을 입력하세요" 등 단계별로 안내
+- "/add_routine" 입력 → 챗봇이 "루틴 제목/빈도/요일/시작일..." 순서로 안내
+
+---
+
+❓ **문제가 있거나 궁금한 점이 있으면 언제든 '/help' 또는 '/start'로 다시 시작하세요!**
+"""
         await update.message.reply_text(help_text)
     
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

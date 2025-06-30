@@ -97,6 +97,31 @@ OPENAI_API_KEY=your_openai_api_key_here  # AI 기능 사용시
 python bot.py
 ```
 
+## 🛠️ 텔레그램 봇 사용법 (초보자용)
+
+1. 텔레그램에서 봇을 찾고 `/start` 입력
+2. 원하는 기능의 명령어를 입력 (예: `/add_schedule`)
+3. 챗봇의 안내에 따라 단계별로 입력
+   - 날짜: 2024-07-01
+   - 시간: 09:00
+   - 설명: "아침 운동"
+4. 완료/수정/삭제/루틴/회고 등도 모두 대화형으로 안내
+
+### 주요 명령어
+- `/add_schedule` : 일정 추가
+- `/view_schedule` : 일정 보기
+- `/edit_schedule` : 일정 수정
+- `/delete_schedule` : 일정 삭제
+- `/add_routine` : 루틴 추가
+- `/view_routines` : 루틴 목록
+- `/today_routines` : 오늘의 루틴
+- `/complete_schedule` : 일정 완료 체크
+- `/routine_analysis` : 루틴 AI 분석
+- `/help` : 도움말
+
+**모든 명령어는 챗봇이 친절하게 안내해주니,  
+처음 써보는 분도 걱정하지 마세요!**
+
 ## 📋 사용법
 
 ### 기본 명령어
